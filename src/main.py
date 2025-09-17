@@ -6,6 +6,8 @@ import random
 import asyncio
 from keep_alive import keep_alive
 from datetime import datetime, timedelta
+from database import load_reaction_roles, save_reaction_roles, load_warnings, save_warnings
+
 
 # Bot setup
 intents = discord.Intents.default()
@@ -162,32 +164,6 @@ ELDRITCH_WHISPERS = [
     "The pattern remembers what you forget. Just ask it what you need to know, and to tell you when you need to know it.",
     "Reality's seams show if you know where to look. Hint: It's not where you think. Quite the opposite, actually..."
 ]
-
-# Storage
-REACTION_ROLES_FILE = 'reaction_roles.json'
-WARNINGS_FILE = 'warnings.json'
-
-def load_reaction_roles():
-    try:
-        with open(REACTION_ROLES_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_reaction_roles(data):
-    with open(REACTION_ROLES_FILE, 'w') as f:
-        json.dump(data, f)
-
-def load_warnings():
-    try:
-        with open(WARNINGS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_warnings(data):
-    with open(WARNINGS_FILE, 'w') as f:
-        json.dump(data, f)
 
 # Check if user has moderation permissions
 def has_mod_role():
