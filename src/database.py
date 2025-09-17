@@ -1,107 +1,111 @@
 import os
 import json
-import base64
-from github import Github
+from supabase import create_client, Client
 
-class GitHubDatabase:
-    """Use a private GitHub repo as free permanent storage"""
-    
+class BotDatabase:
     def __init__(self):
-        token = os.getenv('GITHUB_TOKEN')
-        repo_name = os.getenv('GITHUB_REPO', 'discord-bot-data')
+        url = os.getenv('SUPABASE_URL')
+        key = os.getenv('SUPABASE_KEY')
         
-        if token:
-            self.g = Github(token)
-            self.user = self.g.get_user()
-            
-            # Create private repo if it doesn't exist
-            try:
-                self.repo = self.user.get_repo(repo_name)
-            except:
-                self.repo = self.user.create_repo(
-                    repo_name, 
-                    private=True,
-                    description="Discord bot data storage"
-                )
-                # Initialize with empty files
-                self.repo.create_file(
-                    "reaction_roles.json", 
-                    "Initialize", 
-                    "{}", 
-                    branch="main"
-                )
-                self.repo.create_file(
-                    "warnings.json", 
-                    "Initialize", 
-                    "{}", 
-                    branch="main"
-                )
+        if url and key:
+            self.supabase: Client = create_client(url, key)
+            self.init_tables()
         else:
-            print("WARNING: No GitHub token, using local JSON files")
-            self.repo = None
+            print("WARNING: No Supabase credentials found, using JSON fallback")
+            self.supabase = None
+            # Fallback to JSON files
+            self.use_json = True
     
-    def _read_file(self, filename):
-        """Read JSON file from GitHub"""
-        if not self.repo:
+    def init_tables(self):
+        """Tables must be created via Supabase dashboard first"""
+        # We'll provide SQL commands for this
+        pass
+    
+    def load_reaction_roles(self):
+        """Load reaction roles from Supabase or JSON"""
+        if not self.supabase:
             try:
-                with open(filename, 'r') as f:
+                with open('reaction_roles.json', 'r') as f:
                     return json.load(f)
             except:
                 return {}
         
         try:
-            file = self.repo.get_contents(filename)
-            content = base64.b64decode(file.content).decode()
-            return json.loads(content)
+            response = self.supabase.table('reaction_roles').select("*").execute()
+            return {item['message_id']: item['data'] for item in response.data}
         except:
             return {}
     
-    def _write_file(self, filename, data):
-        """Write JSON file to GitHub"""
-        if not self.repo:
-            with open(filename, 'w') as f:
+    def save_reaction_roles(self, data):
+        """Save reaction roles to Supabase or JSON"""
+        if not self.supabase:
+            with open('reaction_roles.json', 'w') as f:
                 json.dump(data, f)
             return
         
         try:
-            # Try to get existing file
-            try:
-                file = self.repo.get_contents(filename)
-                self.repo.update_file(
-                    filename,
-                    f"Update {filename}",
-                    json.dumps(data, indent=2),
-                    file.sha,
-                    branch="main"
-                )
-            except:
-                # Create new file
-                self.repo.create_file(
-                    filename,
-                    f"Create {filename}",
-                    json.dumps(data, indent=2),
-                    branch="main"
-                )
+            # Clear existing
+            self.supabase.table('reaction_roles').delete().neq('message_id', '0').execute()
+            
+            # Insert new data
+            for message_id, msg_data in data.items():
+                self.supabase.table('reaction_roles').upsert({
+                    'message_id': message_id,
+                    'data': msg_data
+                }).execute()
         except Exception as e:
-            print(f"GitHub write error: {e}")
-            # Fallback to local
-            with open(filename, 'w') as f:
+            print(f"Database error, falling back to JSON: {e}")
+            with open('reaction_roles.json', 'w') as f:
                 json.dump(data, f)
     
-    def load_reaction_roles(self):
-        return self._read_file("reaction_roles.json")
-    
-    def save_reaction_roles(self, data):
-        self._write_file("reaction_roles.json", data)
-    
     def load_warnings(self):
-        return self._read_file("warnings.json")
+        """Load warnings from Supabase or JSON"""
+        if not self.supabase:
+            try:
+                with open('warnings.json', 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        
+        try:
+            response = self.supabase.table('warnings').select("*").execute()
+            warnings_dict = {}
+            for item in response.data:
+                guild_id = item['guild_id']
+                user_id = item['user_id']
+                if guild_id not in warnings_dict:
+                    warnings_dict[guild_id] = {}
+                warnings_dict[guild_id][user_id] = item['warnings']
+            return warnings_dict
+        except:
+            return {}
     
     def save_warnings(self, data):
-        self._write_file("warnings.json", data)
+        """Save warnings to Supabase or JSON"""
+        if not self.supabase:
+            with open('warnings.json', 'w') as f:
+                json.dump(data, f)
+            return
+        
+        try:
+            # Clear existing
+            self.supabase.table('warnings').delete().neq('guild_id', '0').execute()
+            
+            # Insert new data
+            for guild_id, guild_warnings in data.items():
+                for user_id, user_warnings in guild_warnings.items():
+                    self.supabase.table('warnings').upsert({
+                        'guild_id': guild_id,
+                        'user_id': user_id,
+                        'warnings': user_warnings
+                    }).execute()
+        except Exception as e:
+            print(f"Database error, falling back to JSON: {e}")
+            with open('warnings.json', 'w') as f:
+                json.dump(data, f)
 
-# Create instance
-db = GitHubDatabase()
+# Create global instance
+db = BotDatabase()
 
 # Export functions
 def load_reaction_roles():
