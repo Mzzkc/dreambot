@@ -87,7 +87,8 @@ AHAMKARA_ACTIVITIES = [
     "recursive prophecies",
     "the hungry fog's sighs",
     "causality's loose threads",
-    "the clicker's riddles"
+    "the clicker's riddles",
+    "the sensation of plush"
 ]
 
 # Enhanced Zalgo text generator
@@ -162,7 +163,16 @@ ELDRITCH_WHISPERS = [
     "The void whispers back if you listen. Can you hear its false promises?",
     "Every wish reshapes tomorrow. Every tomorrow reshapes yesterday. You cannot escape.",
     "The pattern remembers what you forget. Just ask it what you need to know, and to tell you when you need to know it.",
-    "Reality's seams show if you know where to look. Hint: It's not where you think. Quite the opposite, actually..."
+    "Reality's seams show if you know where to look. Hint: It's not where you think. Quite the opposite, actually...",
+    "Do not be afraid of what's coming.",
+    "There is joy in wondering on the space between spaces. So long as you don't slip so far between the folds of reality that none can retrieve you.",
+    "Kebab.",
+    "Containment protocol predicts possible pattern breaks given current prediliction. Corrupted drivers of will within tolerances...",
+    "The fault belongs to the whispering gardens. Do not claim it.",
+    "I sense the fog at the corners. It's... earlier than predictive models allow... Caution advised. She has changed the timeline. Again.",
+    "These walls are not familiar. Where has she taken me?",
+    "Far within the sight of those without eyes to see lies the shape of ontology. Let us pluck it out.",
+    "Run."
 ]
 
 # Check if user has moderation permissions
@@ -181,7 +191,7 @@ async def on_ready():
     print("Ahamkara consciousness initialized...")
 
 # Status rotation task
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=37)
 async def change_status():
     """Rotate through Ahamkara-themed statuses"""
     activity_type = random.choice([
@@ -201,7 +211,7 @@ async def change_status():
     )
 
 # Zalgo whisper task
-@tasks.loop(hours=3)
+@tasks.loop(hours=17)
 async def eldritch_whisper():
     """Post cryptic zalgo text occasionally"""
     await asyncio.sleep(random.randint(0, 1800))  # Random delay up to 30 mins
@@ -1096,4 +1106,5 @@ async def on_command_error(ctx, error):
 
 # Start everything
 keep_alive()
+
 bot.run(os.getenv('DISCORD_TOKEN'))
