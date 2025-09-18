@@ -1,0 +1,19 @@
+import discord
+
+BOT_PREFIX = '!'
+
+INTENTS = discord.Intents.default()
+INTENTS.message_content = True
+INTENTS.members = True
+INTENTS.reactions = True
+INTENTS.guilds = True
+
+STATUS_ROTATION_MINUTES = 37
+
+ELDRITCH_WHISPER_HOURS = 17
+ELDRITCH_WHISPER_RANDOM_DELAY = 1800  # 30 minutes max delay
+
+AUTO_TIMEOUT_WARNINGS = 3
+AUTO_TIMEOUT_DURATION_HOURS = 24
+
+PURGE_MAX_MESSAGES = 100
