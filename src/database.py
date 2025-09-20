@@ -86,11 +86,11 @@ class BotDatabase:
             with open('warnings.json', 'w') as f:
                 json.dump(data, f)
             return
-        
+
         try:
             # Clear existing
             self.supabase.table('warnings').delete().neq('guild_id', '0').execute()
-            
+
             # Insert new data
             for guild_id, guild_warnings in data.items():
                 for user_id, user_warnings in guild_warnings.items():
@@ -102,6 +102,43 @@ class BotDatabase:
         except Exception as e:
             print(f"Database error, falling back to JSON: {e}")
             with open('warnings.json', 'w') as f:
+                json.dump(data, f)
+
+    def load_suggestions(self):
+        """Load suggestions from Supabase or JSON"""
+        if not self.supabase:
+            try:
+                with open('suggestions.json', 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+
+        try:
+            response = self.supabase.table('suggestions').select("*").execute()
+            return {item['message_id']: item['data'] for item in response.data}
+        except:
+            return {}
+
+    def save_suggestions(self, data):
+        """Save suggestions to Supabase or JSON"""
+        if not self.supabase:
+            with open('suggestions.json', 'w') as f:
+                json.dump(data, f)
+            return
+
+        try:
+            # Clear existing
+            self.supabase.table('suggestions').delete().neq('message_id', '0').execute()
+
+            # Insert new data
+            for message_id, suggestion_data in data.items():
+                self.supabase.table('suggestions').upsert({
+                    'message_id': message_id,
+                    'data': suggestion_data
+                }).execute()
+        except Exception as e:
+            print(f"Database error, falling back to JSON: {e}")
+            with open('suggestions.json', 'w') as f:
                 json.dump(data, f)
 
 # Create global instance
@@ -119,3 +156,9 @@ def load_warnings():
 
 def save_warnings(data):
     db.save_warnings(data)
+
+def load_suggestions():
+    return db.load_suggestions()
+
+def save_suggestions(data):
+    db.save_suggestions(data)

@@ -22,6 +22,7 @@ class DreambotClient(commands.Bot):
             'cogs.moderation',
             'cogs.roles',
             'cogs.utilities',
+            'cogs.suggestions',
             'events.member_events',
             'events.reaction_events'
         ]

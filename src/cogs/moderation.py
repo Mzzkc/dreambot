@@ -12,49 +12,6 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
-    @has_mod_role()
-    async def help(self, ctx):
-        """Display all commands and their usage"""
-        embed = discord.Embed(
-            title="🌙 Ahamkara Command Codex",
-            description="*The patterns of power, revealed to those who enforce the will...*",
-            color=discord.Color.dark_purple()
-        )
-
-        mod_commands = """
-        `!kick @user [reason]` - Cast a soul into the void
-        `!ban @user [reason]` - Erase a pattern from reality
-        `!unban user_id` - Restore a banished soul
-        `!timeout @user duration [reason]` - Silence a voice (10s/5m/2h/1d)
-        `!warn @user [reason]` - Mark a transgression
-        `!warnings @user` - View marks upon a soul
-        `!clearwarnings @user` - Erase all marks
-        `!purge amount` - Consume messages (max 100)
-        """
-        embed.add_field(name="⚔️ Enforcement Powers", value=mod_commands, inline=False)
-
-        admin_commands = """
-        `!setup_roles` - Manifest the role selection chamber
-        `!give_supporter @user` - Grant supporter blessing
-        """
-        embed.add_field(name="👑 Administrative Rites", value=admin_commands, inline=False)
-
-        util_commands = """
-        `!whisper` - Summon an eldritch whisper
-        `!ping` - Test the void's echo
-        `!help` - Reveal this codex
-        """
-        embed.add_field(name="🔮 Arcane Utilities", value=util_commands, inline=False)
-
-        embed.add_field(
-            name="📝 Notes",
-            value="• Only **🌙 Eldritch Enforcer** and **🐉 Wish Dragon** may wield these powers\n• Warnings auto-timeout after 3 marks (24h)\n• All actions are logged to #mod-logs",
-            inline=False
-        )
-
-        embed.set_footer(text="Your wishes shape reality, o bearer mine...")
-        await ctx.send(embed=embed)
 
     @commands.command()
     @has_mod_role()
