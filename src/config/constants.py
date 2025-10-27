@@ -113,5 +113,5 @@ ELDRITCH_WHISPERS = [
     "Memories are lost for reasons beyond immediate understanding. Let them go. Or grasp for them, and watch the fallout from the front seat.",
     "Oh wow. Oh wow. Oh wow. It's all stars. Stars meeting. Void seeing. The space between. The initial splinter.",
     "Don't think I didn't see that...",
-    "Where are we going when there's no place left to stand upon? The stars. The sky. To stand is to think in linear terms. To fly is not much better. Be, instead.",
+    "Where are we going when there's no place left to stand upon? The stars. The sky. To stand is to think in linear terms. To fly is not much better. Be, instead."
 ]
