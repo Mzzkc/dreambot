@@ -167,6 +167,7 @@ class Suggestions(commands.Cog):
             'guild_id': guild_id,
             'channel_id': channel_id,
             'votes': 0,
+            'status': 'active',
             'created_at': datetime.utcnow().isoformat()
         }
         self._save_suggestions_to_db(suggestions)
@@ -297,9 +298,14 @@ class Suggestions(commands.Cog):
     async def top_videos(self, ctx, limit: int = 10):
         """*List the most desired video visions...*"""
         suggestions = self._load_suggestions()
+        suggestions_channel = self.get_suggestions_channel(ctx.guild)
+
+        # Filter for active video suggestions only
         video_suggestions = [
             (msg_id, data) for msg_id, data in suggestions.items()
-            if data['type'] == 'video' and data['guild_id'] == ctx.guild.id
+            if data['type'] == 'video'
+            and data['guild_id'] == ctx.guild.id
+            and data.get('status', 'active') == 'active'
         ]
 
         # Sort by votes
@@ -321,9 +327,15 @@ class Suggestions(commands.Cog):
         )
 
         for i, (msg_id, data) in enumerate(video_suggestions, 1):
+            # Get channel_id, default to suggestions channel if not present
+            channel_id = data.get('channel_id', suggestions_channel.id if suggestions_channel else ctx.channel.id)
+            message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+
+            value_text = f"**{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*"
+
             embed.add_field(
-                name=f"{i}. {data['votes']} 🌟",
-                value=data['description'][:100] + ('...' if len(data['description']) > 100 else ''),
+                name=f"{i}.",
+                value=value_text,
                 inline=False
             )
 
@@ -333,9 +345,14 @@ class Suggestions(commands.Cog):
     async def top_other(self, ctx, limit: int = 10):
         """*List the most desired other wishes...*"""
         suggestions = self._load_suggestions()
+        suggestions_channel = self.get_suggestions_channel(ctx.guild)
+
+        # Filter for active other suggestions only
         other_suggestions = [
             (msg_id, data) for msg_id, data in suggestions.items()
-            if data['type'] == 'other' and data['guild_id'] == ctx.guild.id
+            if data['type'] == 'other'
+            and data['guild_id'] == ctx.guild.id
+            and data.get('status', 'active') == 'active'
         ]
 
         # Sort by votes
@@ -357,13 +374,125 @@ class Suggestions(commands.Cog):
         )
 
         for i, (msg_id, data) in enumerate(other_suggestions, 1):
+            # Get channel_id, default to suggestions channel if not present
+            channel_id = data.get('channel_id', suggestions_channel.id if suggestions_channel else ctx.channel.id)
+            message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+
+            value_text = f"**{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*"
+
             embed.add_field(
-                name=f"{i}. {data['votes']} 🌟",
-                value=data['description'][:100] + ('...' if len(data['description']) > 100 else ''),
+                name=f"{i}.",
+                value=value_text,
                 inline=False
             )
 
         await ctx.send(embed=embed)
+
+    @commands.command(name='weeklysummary')
+    @has_mod_role()
+    async def weekly_summary_manual(self, ctx):
+        """*Manually trigger the weekly wish summary...*
+
+        For testing purposes. Includes duplicate detection.
+        """
+        suggestions_channel = self.get_suggestions_channel(ctx.guild)
+        if not suggestions_channel:
+            embed = discord.Embed(
+                description="*The realm of wishes does not exist...*",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Check for duplicate in last 5 messages
+        try:
+            recent_messages = []
+            async for message in suggestions_channel.history(limit=5):
+                recent_messages.append(message)
+
+            # Check if any recent message is a weekly summary from the bot
+            found_duplicate = False
+            for msg in recent_messages:
+                if msg.author == self.bot.user and msg.embeds:
+                    for embed in msg.embeds:
+                        if embed.title and "Weekly Wish Summary" in embed.title:
+                            found_duplicate = True
+                            break
+                if found_duplicate:
+                    break
+
+            if found_duplicate:
+                warning_embed = discord.Embed(
+                    title="⚠️ Duplicate Detected",
+                    description="*A weekly summary already exists within the last 5 messages. This prevents spam.*\n\nDo you still want to post another summary?",
+                    color=discord.Color.orange()
+                )
+                warning_msg = await ctx.send(embed=warning_embed)
+
+                # Wait for user confirmation (simplified - just inform)
+                confirm_embed = discord.Embed(
+                    description="*Posting summary anyway for testing purposes...*",
+                    color=discord.Color.blue()
+                )
+                await ctx.send(embed=confirm_embed)
+        except:
+            pass  # Continue even if duplicate check fails
+
+        # Generate and post summary
+        suggestions = self._load_suggestions()
+        guild_suggestions = {
+            msg_id: data for msg_id, data in suggestions.items()
+            if data['guild_id'] == ctx.guild.id
+            and data.get('status', 'active') == 'active'
+        }
+
+        # Get top video and other suggestions (active only)
+        video_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'video']
+        other_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'other']
+
+        video_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
+        other_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
+
+        embed = discord.Embed(
+            title="📅 Weekly Wish Summary",
+            description="*The pattern reveals the most desired manifestations...*",
+            color=discord.Color.dark_purple(),
+            timestamp=datetime.utcnow()
+        )
+
+        # Top video wishes
+        if video_suggestions:
+            video_text = ""
+            for i, (msg_id, data) in enumerate(video_suggestions[:5], 1):
+                # Get channel_id, default to suggestions channel if not present
+                channel_id = data.get('channel_id', suggestions_channel.id)
+                message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+                video_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
+            embed.add_field(name="🎬 Top Video Wishes", value=video_text, inline=False)
+
+        # Top other wishes
+        if other_suggestions:
+            other_text = ""
+            for i, (msg_id, data) in enumerate(other_suggestions[:5], 1):
+                # Get channel_id, default to suggestions channel if not present
+                channel_id = data.get('channel_id', suggestions_channel.id)
+                message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+                other_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
+            embed.add_field(name="✨ Top Other Wishes", value=other_text, inline=False)
+
+        if video_suggestions or other_suggestions:
+            await suggestions_channel.send(embed=embed)
+            success_embed = discord.Embed(
+                description="*Weekly summary posted successfully.*",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=success_embed)
+        else:
+            no_wishes_embed = discord.Embed(
+                description="*No active wishes to summarize...*",
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=no_wishes_embed)
 
     @commands.command(name='setthreshold')
     @has_mod_role()
@@ -387,9 +516,9 @@ class Suggestions(commands.Cog):
     @commands.command(name='migratewishes')
     @has_mod_role()
     async def migrate_wishes(self, ctx):
-        """*Migrate existing wishes to include channel information...*
+        """*Migrate existing wishes to current schema...*
 
-        This command backfills channel_id for suggestions created before the update.
+        This command backfills channel_id and status for suggestions created before updates.
         Only needed once after upgrading the bot.
         """
         suggestions = self._load_suggestions()
@@ -405,33 +534,44 @@ class Suggestions(commands.Cog):
 
         status_embed = discord.Embed(
             title="🔄 Migration in Progress",
-            description="*Reweaving the pattern to include the paths of origin...*",
+            description="*Reweaving the pattern to include all necessary fields...*",
             color=discord.Color.blue()
         )
         status_msg = await ctx.send(embed=status_embed)
 
-        migrated = 0
-        already_migrated = 0
-        failed = 0
+        migrated_channel = 0
+        migrated_status = 0
+        already_complete = 0
+        defaulted = 0
 
         for message_id, data in suggestions.items():
-            # Check if already has channel_id
-            if 'channel_id' in data:
-                already_migrated += 1
-                continue
+            needs_update = False
 
-            # Try to fetch the message and get its channel_id
-            try:
-                message = await suggestions_channel.fetch_message(int(message_id))
-                data['channel_id'] = message.channel.id
-                migrated += 1
-            except Exception as e:
-                # Message not found or error - default to suggestions channel
-                data['channel_id'] = suggestions_channel.id
-                failed += 1
+            # Check if needs channel_id
+            if 'channel_id' not in data:
+                # Try to fetch the message and get its channel_id
+                try:
+                    message = await suggestions_channel.fetch_message(int(message_id))
+                    data['channel_id'] = message.channel.id
+                    migrated_channel += 1
+                    needs_update = True
+                except Exception as e:
+                    # Message not found or error - default to suggestions channel
+                    data['channel_id'] = suggestions_channel.id
+                    defaulted += 1
+                    needs_update = True
+
+            # Check if needs status
+            if 'status' not in data:
+                data['status'] = 'active'
+                migrated_status += 1
+                needs_update = True
+
+            if not needs_update:
+                already_complete += 1
 
         # Save updated suggestions
-        if migrated > 0 or failed > 0:
+        if migrated_channel > 0 or migrated_status > 0 or defaulted > 0:
             self._save_suggestions_to_db(suggestions)
 
         # Report results
@@ -440,13 +580,195 @@ class Suggestions(commands.Cog):
             color=discord.Color.green()
         )
         result_embed.add_field(
-            name="Results",
-            value=f"**Migrated:** {migrated}\n**Already Complete:** {already_migrated}\n**Defaulted:** {failed}",
+            name="Channel ID Migration",
+            value=f"**Migrated:** {migrated_channel}\n**Defaulted:** {defaulted}",
+            inline=True
+        )
+        result_embed.add_field(
+            name="Status Migration",
+            value=f"**Migrated:** {migrated_status}",
+            inline=True
+        )
+        result_embed.add_field(
+            name="Overall",
+            value=f"**Already Complete:** {already_complete}\n**Total Wishes:** {len(suggestions)}",
             inline=False
         )
-        result_embed.set_footer(text="All wishes now contain their paths of origin")
+        result_embed.set_footer(text="All wishes now contain complete schema")
 
         await status_msg.edit(embed=result_embed)
+
+    @commands.command(name='manifestwish')
+    @has_mod_role()
+    async def manifest_wish(self, ctx, message_id: str, *, notes: str = None):
+        """*Manifest a wish into reality, marking it as granted...*
+
+        Usage: !manifestwish <message_id> [notes]
+        Notes are optional context about how the wish was fulfilled.
+        """
+        # Extract message ID from Discord link if provided
+        if 'discord.com/channels/' in message_id:
+            message_id = message_id.split('/')[-1]
+
+        suggestions = self._load_suggestions()
+
+        if message_id not in suggestions:
+            embed = discord.Embed(
+                description="*This wish does not exist in the pattern...*",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        suggestion = suggestions[message_id]
+        current_status = suggestion.get('status', 'active')
+
+        # Check if already granted
+        if current_status == 'granted':
+            granted_at = suggestion.get('granted_at', 'unknown time')
+            granted_by_id = suggestion.get('granted_by')
+            granted_notes = suggestion.get('granted_notes', 'No notes provided')
+
+            embed = discord.Embed(
+                title="✨ Already Manifested",
+                description=f"*This wish was already granted at {granted_at}*",
+                color=discord.Color.blue()
+            )
+            if granted_by_id:
+                embed.add_field(name="Granted By", value=f"<@{granted_by_id}>", inline=True)
+            embed.add_field(name="Notes", value=granted_notes, inline=False)
+            await ctx.send(embed=embed)
+            return
+
+        # Mark as granted
+        suggestion['status'] = 'granted'
+        suggestion['granted_at'] = datetime.utcnow().isoformat()
+        suggestion['granted_by'] = ctx.author.id
+        suggestion['granted_notes'] = notes if notes else 'No notes provided'
+
+        suggestions[message_id] = suggestion
+        self._save_suggestions_to_db(suggestions)
+
+        # Try to add ✅ reaction to original message
+        try:
+            suggestions_channel = self.get_suggestions_channel(ctx.guild)
+            if suggestions_channel:
+                original_message = await suggestions_channel.fetch_message(int(message_id))
+                await original_message.add_reaction('✅')
+        except:
+            pass  # Message might be deleted or inaccessible
+
+        # Send celebration embed
+        wish_type = suggestion['type']
+        description = suggestion['description'][:100] + ('...' if len(suggestion['description']) > 100 else '')
+
+        embed = discord.Embed(
+            title="🌟 Wish Manifested!",
+            description=f"*Reality bends to desire, o bearer mine...*\n\n**Type:** {wish_type.capitalize()}\n**Wish:** {description}",
+            color=discord.Color.green(),
+            timestamp=datetime.utcnow()
+        )
+        embed.add_field(name="Granted By", value=ctx.author.mention, inline=True)
+        if notes:
+            embed.add_field(name="Fulfillment Notes", value=notes, inline=False)
+        embed.set_footer(text="The pattern remembers all manifestations")
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name='manifestations')
+    async def manifestations(self, ctx, wish_type: str = None, limit: int = 10):
+        """*Witness the wishes that have been granted...*
+
+        Usage: !manifestations [type] [limit]
+        Type can be: video, channel, other, or all (default: all)
+        """
+        suggestions = self._load_suggestions()
+        suggestions_channel = self.get_suggestions_channel(ctx.guild)
+
+        # Filter for granted wishes
+        granted_wishes = [
+            (msg_id, data) for msg_id, data in suggestions.items()
+            if data.get('status') == 'granted'
+            and data['guild_id'] == ctx.guild.id
+        ]
+
+        # Filter by type if specified
+        if wish_type and wish_type.lower() in ['video', 'channel', 'other']:
+            granted_wishes = [
+                (msg_id, data) for msg_id, data in granted_wishes
+                if data['type'] == wish_type.lower()
+            ]
+
+        # Sort by granted_at (newest first)
+        granted_wishes.sort(
+            key=lambda x: x[1].get('granted_at', ''),
+            reverse=True
+        )
+        granted_wishes = granted_wishes[:limit]
+
+        if not granted_wishes:
+            type_str = f" {wish_type}" if wish_type else ""
+            embed = discord.Embed(
+                description=f"*No{type_str} wishes have been manifested yet...*",
+                color=discord.Color.dark_gold()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title="🌟 Manifested Wishes",
+            description="*The pattern reveals what has been brought into reality...*",
+            color=discord.Color.dark_gold(),
+            timestamp=datetime.utcnow()
+        )
+
+        for i, (msg_id, data) in enumerate(granted_wishes, 1):
+            # Get channel_id
+            channel_id = data.get('channel_id', suggestions_channel.id if suggestions_channel else ctx.channel.id)
+            message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+
+            # Format granted time
+            granted_at = data.get('granted_at', 'Unknown time')
+            try:
+                granted_time = datetime.fromisoformat(granted_at.replace('Z', '+00:00'))
+                time_ago = (datetime.utcnow() - granted_time).days
+                if time_ago == 0:
+                    time_str = "Today"
+                elif time_ago == 1:
+                    time_str = "Yesterday"
+                else:
+                    time_str = f"{time_ago} days ago"
+            except:
+                time_str = "Recently"
+
+            # Get granter
+            granted_by = data.get('granted_by')
+            granter_str = f"<@{granted_by}>" if granted_by else "Unknown"
+
+            # Build field value
+            wish_type_icon = {
+                'video': '🎬',
+                'channel': '💬',
+                'other': '✨'
+            }.get(data['type'], '✨')
+
+            field_value = f"{wish_type_icon} **{data['type'].capitalize()} Wish** - {time_str}\n"
+            field_value += f"[View Original]({message_link})\n"
+            field_value += f"*{data['description'][:60]}{'...' if len(data['description']) > 60 else ''}*\n"
+            field_value += f"**Granted by:** {granter_str}\n"
+
+            notes = data.get('granted_notes')
+            if notes and notes != 'No notes provided':
+                field_value += f"📝 *{notes[:50]}{'...' if len(notes) > 50 else ''}*"
+
+            embed.add_field(
+                name=f"{i}.",
+                value=field_value,
+                inline=False
+            )
+
+        embed.set_footer(text=f"Showing {len(granted_wishes)} manifested wish{'es' if len(granted_wishes) != 1 else ''}")
+        await ctx.send(embed=embed)
 
     @commands.command(name='removewish')
     @has_mod_role()
@@ -504,13 +826,37 @@ class Suggestions(commands.Cog):
             if not suggestions_channel:
                 continue
 
+            # Check for duplicate in last 5 messages
+            try:
+                recent_messages = []
+                async for message in suggestions_channel.history(limit=5):
+                    recent_messages.append(message)
+
+                # Check if any recent message is a weekly summary from the bot
+                found_duplicate = False
+                for msg in recent_messages:
+                    if msg.author == self.bot.user and msg.embeds:
+                        for embed in msg.embeds:
+                            if embed.title and "Weekly Wish Summary" in embed.title:
+                                found_duplicate = True
+                                break
+                    if found_duplicate:
+                        break
+
+                # Skip posting if duplicate found
+                if found_duplicate:
+                    continue
+            except:
+                pass  # Continue even if duplicate check fails
+
             suggestions = self._load_suggestions()
             guild_suggestions = {
                 msg_id: data for msg_id, data in suggestions.items()
                 if data['guild_id'] == guild.id
+                and data.get('status', 'active') == 'active'
             }
 
-            # Get top video and other suggestions
+            # Get top video and other suggestions (active only)
             video_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'video']
             other_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'other']
 
@@ -616,10 +962,13 @@ class Suggestions(commands.Cog):
 
             suggestion_commands = """
             `!wish <type> <description>` - Shape reality through desire
-            `!topvideos [limit]` - Reveal most desired visions
-            `!topother [limit]` - Unveil whispered possibilities
+            `!topvideos [limit]` - Reveal most desired active visions
+            `!topother [limit]` - Unveil whispered active possibilities
+            `!manifestations [type] [limit]` - View granted wishes
             `!setthreshold <value>` - Adjust manifestation threshold
+            `!manifestwish <id> [notes]` - Mark a wish as granted
             `!removewish <message_id>` - Unmake a wish from the pattern
+            `!weeklysummary` - Post weekly summary (testing)
             `!migratewishes` - Update existing wishes (run once after upgrade)
             """
             embed.add_field(name="✨ Wish Manifestation", value=suggestion_commands, inline=False)
@@ -658,8 +1007,9 @@ class Suggestions(commands.Cog):
                 embed.add_field(name="✨ Dream Manifestation", value=wish_commands, inline=False)
 
             info_commands = """
-            `!topvideos [limit]` - Witness the most coveted visions
-            `!topother [limit]` - Glimpse whispered possibilities
+            `!topvideos [limit]` - Witness the most coveted active visions
+            `!topother [limit]` - Glimpse whispered active possibilities
+            `!manifestations [type] [limit]` - View granted wishes
             `!ping` - Test the void's echo
             """
             embed.add_field(name="🔮 Arcane Knowledge", value=info_commands, inline=False)
