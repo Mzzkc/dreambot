@@ -1,8 +1,17 @@
 # Active Context
 
+## Session 3 Complete - Channel Wishes in Weekly Summaries
+
+### Latest Session (2025-11-03 Session 3)
+
+**New Features Implemented:**
+- Channel wishes now included in weekly top wishes summaries
+- New `!topchannels` command to view top active channel wishes with clickable links
+- Help documentation updated with new command
+
 ## Session 2 Complete - Wish Lifecycle Management
 
-### Latest Session (2025-11-03 Session 2)
+### Previous Session (2025-11-03 Session 2)
 
 **New Features Implemented:**
 - Comprehensive wish lifecycle management (active → granted)

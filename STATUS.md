@@ -1,13 +1,20 @@
 # Dreambot Status
 
-**Last Updated**: 2025-11-03 (Session 2)
-**Session**: Wish lifecycle management and enhanced tracking
+**Last Updated**: 2025-11-03 (Session 3)
+**Session**: Channel wishes in weekly summaries
 
 ## Current State
 - Bot has comprehensive wish management system
 - Wish lifecycle: Created → Active → Granted/Removed
-- All features complete and pushed to GitHub
+- Channel wishes now included in weekly summaries
+- New !topchannels command available
+- All features complete and ready for commit
 - Backward compatible with existing data
+
+## Completed Work (Session 3)
+1. ✅ **Channel wishes in weekly summary** - Both manual and automatic
+2. ✅ **!topchannels command** - View top active channel wishes with links
+3. ✅ **Help documentation updates** - Added new command to mod and user help
 
 ## Completed Work (Session 2)
 1. ✅ **Wish lifecycle management** - Status tracking (active/granted)

@@ -388,6 +388,53 @@ class Suggestions(commands.Cog):
 
         await ctx.send(embed=embed)
 
+    @commands.command(name='topchannels')
+    async def top_channels(self, ctx, limit: int = 10):
+        """*List the most desired channel wishes...*"""
+        suggestions = self._load_suggestions()
+        suggestions_channel = self.get_suggestions_channel(ctx.guild)
+
+        # Filter for active channel suggestions only
+        channel_suggestions = [
+            (msg_id, data) for msg_id, data in suggestions.items()
+            if data['type'] == 'channel'
+            and data['guild_id'] == ctx.guild.id
+            and data.get('status', 'active') == 'active'
+        ]
+
+        # Sort by votes
+        channel_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
+        channel_suggestions = channel_suggestions[:limit]
+
+        if not channel_suggestions:
+            embed = discord.Embed(
+                description="*No realms seek manifestation...*",
+                color=discord.Color.blue()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title="💬 Top Channel Wishes",
+            description="*The most desired new realms...*",
+            color=discord.Color.blue()
+        )
+
+        for i, (msg_id, data) in enumerate(channel_suggestions, 1):
+            # Get channel_id, default to suggestions channel if not present
+            channel_id = data.get('channel_id', suggestions_channel.id if suggestions_channel else ctx.channel.id)
+            message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+
+            value_text = f"**{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*"
+
+            embed.add_field(
+                name=f"{i}.",
+                value=value_text,
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
+
     @commands.command(name='weeklysummary')
     @has_mod_role()
     async def weekly_summary_manual(self, ctx):
@@ -446,11 +493,13 @@ class Suggestions(commands.Cog):
             and data.get('status', 'active') == 'active'
         }
 
-        # Get top video and other suggestions (active only)
+        # Get top video, channel, and other suggestions (active only)
         video_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'video']
+        channel_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'channel']
         other_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'other']
 
         video_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
+        channel_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
         other_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
 
         embed = discord.Embed(
@@ -470,6 +519,16 @@ class Suggestions(commands.Cog):
                 video_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
             embed.add_field(name="🎬 Top Video Wishes", value=video_text, inline=False)
 
+        # Top channel wishes
+        if channel_suggestions:
+            channel_text = ""
+            for i, (msg_id, data) in enumerate(channel_suggestions[:5], 1):
+                # Get channel_id, default to suggestions channel if not present
+                channel_id = data.get('channel_id', suggestions_channel.id)
+                message_link = f"https://discord.com/channels/{ctx.guild.id}/{channel_id}/{msg_id}"
+                channel_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
+            embed.add_field(name="💬 Top Channel Wishes", value=channel_text, inline=False)
+
         # Top other wishes
         if other_suggestions:
             other_text = ""
@@ -480,7 +539,7 @@ class Suggestions(commands.Cog):
                 other_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
             embed.add_field(name="✨ Top Other Wishes", value=other_text, inline=False)
 
-        if video_suggestions or other_suggestions:
+        if video_suggestions or channel_suggestions or other_suggestions:
             await suggestions_channel.send(embed=embed)
             success_embed = discord.Embed(
                 description="*Weekly summary posted successfully.*",
@@ -856,11 +915,13 @@ class Suggestions(commands.Cog):
                 and data.get('status', 'active') == 'active'
             }
 
-            # Get top video and other suggestions (active only)
+            # Get top video, channel, and other suggestions (active only)
             video_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'video']
+            channel_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'channel']
             other_suggestions = [(msg_id, data) for msg_id, data in guild_suggestions.items() if data['type'] == 'other']
 
             video_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
+            channel_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
             other_suggestions.sort(key=lambda x: x[1]['votes'], reverse=True)
 
             embed = discord.Embed(
@@ -880,6 +941,16 @@ class Suggestions(commands.Cog):
                     video_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
                 embed.add_field(name="🎬 Top Video Wishes", value=video_text, inline=False)
 
+            # Top channel wishes
+            if channel_suggestions:
+                channel_text = ""
+                for i, (msg_id, data) in enumerate(channel_suggestions[:5], 1):
+                    # Get channel_id, default to suggestions channel if not present
+                    channel_id = data.get('channel_id', suggestions_channel.id)
+                    message_link = f"https://discord.com/channels/{guild.id}/{channel_id}/{msg_id}"
+                    channel_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
+                embed.add_field(name="💬 Top Channel Wishes", value=channel_text, inline=False)
+
             # Top other wishes
             if other_suggestions:
                 other_text = ""
@@ -890,7 +961,7 @@ class Suggestions(commands.Cog):
                     other_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
                 embed.add_field(name="✨ Top Other Wishes", value=other_text, inline=False)
 
-            if video_suggestions or other_suggestions:
+            if video_suggestions or channel_suggestions or other_suggestions:
                 await suggestions_channel.send(embed=embed)
 
     @weekly_summary.before_loop
@@ -963,6 +1034,7 @@ class Suggestions(commands.Cog):
             suggestion_commands = """
             `!wish <type> <description>` - Shape reality through desire
             `!topvideos [limit]` - Reveal most desired active visions
+            `!topchannels [limit]` - Reveal most desired active realms
             `!topother [limit]` - Unveil whispered active possibilities
             `!manifestations [type] [limit]` - View granted wishes
             `!setthreshold <value>` - Adjust manifestation threshold
@@ -1008,6 +1080,7 @@ class Suggestions(commands.Cog):
 
             info_commands = """
             `!topvideos [limit]` - Witness the most coveted active visions
+            `!topchannels [limit]` - Witness the most desired active realms
             `!topother [limit]` - Glimpse whispered active possibilities
             `!manifestations [type] [limit]` - View granted wishes
             `!ping` - Test the void's echo
