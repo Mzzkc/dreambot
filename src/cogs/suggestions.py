@@ -107,7 +107,7 @@ class Suggestions(commands.Cog):
         await message.add_reaction('🌟')
 
         # Save to database
-        self._save_suggestion(str(message.id), 'video', ctx.author.id, description, ctx.guild.id)
+        self._save_suggestion(str(message.id), 'video', ctx.author.id, description, ctx.guild.id, ctx.channel.id)
 
     async def _handle_channel_wish(self, ctx, description):
         """Handle channel suggestion"""
@@ -138,7 +138,7 @@ class Suggestions(commands.Cog):
 
         # Save to database
         full_desc = f"{channel_name}: {channel_desc}"
-        self._save_suggestion(str(message.id), 'channel', ctx.author.id, full_desc, ctx.guild.id)
+        self._save_suggestion(str(message.id), 'channel', ctx.author.id, full_desc, ctx.guild.id, ctx.channel.id)
 
     async def _handle_other_wish(self, ctx, description):
         """Handle other suggestion"""
@@ -155,9 +155,9 @@ class Suggestions(commands.Cog):
         await message.add_reaction('🌟')
 
         # Save to database
-        self._save_suggestion(str(message.id), 'other', ctx.author.id, description, ctx.guild.id)
+        self._save_suggestion(str(message.id), 'other', ctx.author.id, description, ctx.guild.id, ctx.channel.id)
 
-    def _save_suggestion(self, message_id: str, suggestion_type: str, author_id: int, description: str, guild_id: int):
+    def _save_suggestion(self, message_id: str, suggestion_type: str, author_id: int, description: str, guild_id: int, channel_id: int):
         """Save suggestion to database"""
         suggestions = self._load_suggestions()
         suggestions[message_id] = {
@@ -165,6 +165,7 @@ class Suggestions(commands.Cog):
             'author_id': author_id,
             'description': description,
             'guild_id': guild_id,
+            'channel_id': channel_id,
             'votes': 0,
             'created_at': datetime.utcnow().isoformat()
         }
@@ -383,6 +384,116 @@ class Suggestions(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    @commands.command(name='migratewishes')
+    @has_mod_role()
+    async def migrate_wishes(self, ctx):
+        """*Migrate existing wishes to include channel information...*
+
+        This command backfills channel_id for suggestions created before the update.
+        Only needed once after upgrading the bot.
+        """
+        suggestions = self._load_suggestions()
+        suggestions_channel = self.get_suggestions_channel(ctx.guild)
+
+        if not suggestions_channel:
+            embed = discord.Embed(
+                description="*The realm of wishes does not exist...*",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        status_embed = discord.Embed(
+            title="🔄 Migration in Progress",
+            description="*Reweaving the pattern to include the paths of origin...*",
+            color=discord.Color.blue()
+        )
+        status_msg = await ctx.send(embed=status_embed)
+
+        migrated = 0
+        already_migrated = 0
+        failed = 0
+
+        for message_id, data in suggestions.items():
+            # Check if already has channel_id
+            if 'channel_id' in data:
+                already_migrated += 1
+                continue
+
+            # Try to fetch the message and get its channel_id
+            try:
+                message = await suggestions_channel.fetch_message(int(message_id))
+                data['channel_id'] = message.channel.id
+                migrated += 1
+            except Exception as e:
+                # Message not found or error - default to suggestions channel
+                data['channel_id'] = suggestions_channel.id
+                failed += 1
+
+        # Save updated suggestions
+        if migrated > 0 or failed > 0:
+            self._save_suggestions_to_db(suggestions)
+
+        # Report results
+        result_embed = discord.Embed(
+            title="✅ Migration Complete",
+            color=discord.Color.green()
+        )
+        result_embed.add_field(
+            name="Results",
+            value=f"**Migrated:** {migrated}\n**Already Complete:** {already_migrated}\n**Defaulted:** {failed}",
+            inline=False
+        )
+        result_embed.set_footer(text="All wishes now contain their paths of origin")
+
+        await status_msg.edit(embed=result_embed)
+
+    @commands.command(name='removewish')
+    @has_mod_role()
+    async def remove_wish(self, ctx, message_id: str):
+        """*Unmake a wish, erasing it from the pattern...*
+
+        Usage: !removewish <message_id>
+        You can right-click a message and copy its ID, or use the message link.
+        """
+        # Extract message ID from Discord link if provided
+        if 'discord.com/channels/' in message_id:
+            message_id = message_id.split('/')[-1]
+
+        suggestions = self._load_suggestions()
+
+        if message_id not in suggestions:
+            embed = discord.Embed(
+                description="*This wish does not exist in the pattern...*",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Get suggestion details before deletion for confirmation
+        suggestion = suggestions[message_id]
+        wish_type = suggestion['type']
+
+        # Remove from database
+        del suggestions[message_id]
+        self._save_suggestions_to_db(suggestions)
+
+        # Try to delete the message if we're in the suggestions channel
+        try:
+            suggestions_channel = self.get_suggestions_channel(ctx.guild)
+            if suggestions_channel:
+                message = await suggestions_channel.fetch_message(int(message_id))
+                await message.delete()
+        except:
+            pass  # Message might already be deleted or inaccessible
+
+        embed = discord.Embed(
+            title="🌑 Wish Erased",
+            description=f"*The {wish_type} wish has been unmade, its pattern dissolved into the void...*",
+            color=discord.Color.dark_gray()
+        )
+        await ctx.send(embed=embed)
+
     @tasks.loop(hours=168)  # Run weekly (168 hours)
     async def weekly_summary(self):
         """Send weekly summary of top suggestions"""
@@ -416,15 +527,21 @@ class Suggestions(commands.Cog):
             # Top video wishes
             if video_suggestions:
                 video_text = ""
-                for i, (_, data) in enumerate(video_suggestions[:5], 1):
-                    video_text += f"{i}. **{data['votes']} 🌟** - {data['description'][:50]}{'...' if len(data['description']) > 50 else ''}\n"
+                for i, (msg_id, data) in enumerate(video_suggestions[:5], 1):
+                    # Get channel_id, default to suggestions channel if not present
+                    channel_id = data.get('channel_id', suggestions_channel.id)
+                    message_link = f"https://discord.com/channels/{guild.id}/{channel_id}/{msg_id}"
+                    video_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
                 embed.add_field(name="🎬 Top Video Wishes", value=video_text, inline=False)
 
             # Top other wishes
             if other_suggestions:
                 other_text = ""
-                for i, (_, data) in enumerate(other_suggestions[:5], 1):
-                    other_text += f"{i}. **{data['votes']} 🌟** - {data['description'][:50]}{'...' if len(data['description']) > 50 else ''}\n"
+                for i, (msg_id, data) in enumerate(other_suggestions[:5], 1):
+                    # Get channel_id, default to suggestions channel if not present
+                    channel_id = data.get('channel_id', suggestions_channel.id)
+                    message_link = f"https://discord.com/channels/{guild.id}/{channel_id}/{msg_id}"
+                    other_text += f"{i}. **{data['votes']} 🌟** - [View Wish]({message_link})\n*{data['description'][:80]}{'...' if len(data['description']) > 80 else ''}*\n\n"
                 embed.add_field(name="✨ Top Other Wishes", value=other_text, inline=False)
 
             if video_suggestions or other_suggestions:
@@ -502,6 +619,8 @@ class Suggestions(commands.Cog):
             `!topvideos [limit]` - Reveal most desired visions
             `!topother [limit]` - Unveil whispered possibilities
             `!setthreshold <value>` - Adjust manifestation threshold
+            `!removewish <message_id>` - Unmake a wish from the pattern
+            `!migratewishes` - Update existing wishes (run once after upgrade)
             """
             embed.add_field(name="✨ Wish Manifestation", value=suggestion_commands, inline=False)
 

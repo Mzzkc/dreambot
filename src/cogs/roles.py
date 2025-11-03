@@ -3,7 +3,7 @@ from discord.ext import commands
 import asyncio
 from database import load_reaction_roles, save_reaction_roles
 from config import (
-    COLOR_ROLES, EXOTIC_COLORS, SPECIAL_ROLES,
+    COLOR_ROLES, EXOTIC_COLORS, SPECIAL_ROLES, PRONOUN_ROLES,
     MOD_ROLES, DREAMER_ROLE, SUPPORTER_ROLE
 )
 
@@ -103,6 +103,23 @@ class Roles(commands.Cog):
                     await ctx.send(embed=error_embed)
                     return
 
+        # Check for pronoun roles
+        created_pronouns = []
+        for emoji, role_name in PRONOUN_ROLES.items():
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
+            if not role:
+                try:
+                    color = discord.Color.random()
+                    role = await ctx.guild.create_role(name=role_name, color=color)
+                    created_pronouns.append(role_name)
+                except discord.Forbidden:
+                    error_embed = discord.Embed(
+                        description=f"❌ Missing permissions to create role '{role_name}'!",
+                        color=discord.Color.red()
+                    )
+                    await ctx.send(embed=error_embed)
+                    return
+
         # Check for Supporter role
         supporter_role = discord.utils.get(ctx.guild.roles, name=SUPPORTER_ROLE)
         if not supporter_role:
@@ -121,7 +138,7 @@ class Roles(commands.Cog):
                 return
 
         # Report created roles
-        if missing_roles or created_colors or created_special:
+        if missing_roles or created_colors or created_special or created_pronouns:
             status_embed = discord.Embed(
                 title="🔧 Setup Status",
                 color=discord.Color.blue()
@@ -142,6 +159,12 @@ class Roles(commands.Cog):
                 status_embed.add_field(
                     name="✨ Created Special Roles",
                     value=f'{len(created_special)} roles',
+                    inline=False
+                )
+            if created_pronouns:
+                status_embed.add_field(
+                    name="🏳️‍🌈 Created Pronoun Roles",
+                    value=f'{len(created_pronouns)} roles',
                     inline=False
                 )
             await ctx.send(embed=status_embed)
@@ -334,6 +357,39 @@ class Roles(commands.Cog):
 
         reaction_data[str(special_msg.id)] = {
             'type': 'special',
+            'channel_id': channel.id,
+            'guild_id': guild_id
+        }
+
+        # 6. PRONOUN ROLES MESSAGE
+        await channel.send("⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻")
+
+        pronoun_embed = discord.Embed(
+            title="🏳️‍🌈 Pronouns",
+            description="Share your pronouns with the community. You may select multiple.",
+            color=discord.Color.from_rgb(255, 175, 243)
+        )
+
+        # Build pronoun lists - split into standard and neo pronouns
+        standard_pronouns = []
+        for emoji, role_name in list(PRONOUN_ROLES.items())[:8]:  # First 8 are standard
+            standard_pronouns.append(f"{emoji} {role_name}")
+
+        neo_pronouns = []
+        for emoji, role_name in list(PRONOUN_ROLES.items())[8:]:  # Rest are neo pronouns
+            neo_pronouns.append(f"{emoji} {role_name}")
+
+        pronoun_embed.add_field(name="Common Pronouns", value="\n".join(standard_pronouns), inline=True)
+        if neo_pronouns:
+            pronoun_embed.add_field(name="Neo Pronouns", value="\n".join(neo_pronouns), inline=True)
+
+        pronoun_msg = await channel.send(embed=pronoun_embed)
+
+        for emoji in PRONOUN_ROLES.keys():
+            await pronoun_msg.add_reaction(emoji)
+
+        reaction_data[str(pronoun_msg.id)] = {
+            'type': 'pronouns',
             'channel_id': channel.id,
             'guild_id': guild_id
         }

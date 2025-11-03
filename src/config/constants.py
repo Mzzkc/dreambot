@@ -39,6 +39,22 @@ SPECIAL_ROLES = {
     '🌀': 'Hypnotist'
 }
 
+PRONOUN_ROLES = {
+    '💙': 'he/him',
+    '💗': 'she/her',
+    '💚': 'they/them',
+    '💜': 'he/they',
+    '🩷': 'she/they',
+    '🤍': 'it/its',
+    '🌈': 'any pronouns',
+    '❓': 'ask my pronouns',
+    '✨': 'xe/xem',
+    '🌙': 'ze/zir',
+    '🧚': 'fae/faer',
+    '⚡': 'e/em',
+    '🌟': 've/ver'
+}
+
 MOD_ROLES = ['🌙 Eldritch Enforcer', '🐉 Wish Dragon']
 
 DREAMER_ROLE = "✨ Dreamer"

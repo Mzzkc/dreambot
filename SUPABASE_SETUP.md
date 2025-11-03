@@ -53,10 +53,13 @@ The `data` JSONB field in the suggestions table contains:
     "author_id": 123456789012345678,
     "description": "Description of the suggestion",
     "guild_id": 987654321098765432,
+    "channel_id": 123456789012345678,
     "votes": 5,
     "created_at": "2023-01-01T00:00:00Z"
 }
 ```
+
+**Note:** The `channel_id` field was added in a recent update to support message links in the weekly summary. For existing suggestions, run the `!migratewishes` command as a moderator to backfill this data.
 
 ### Reaction Roles Data Structure
 
@@ -109,3 +112,33 @@ If Supabase is not configured or fails, the bot will automatically fall back to 
 - `reaction_roles.json`
 - `warnings.json`
 - `suggestions.json`
+
+## Migration Instructions
+
+### Upgrading from Previous Versions
+
+If you're upgrading from a version before the `channel_id` addition:
+
+1. **No Supabase changes needed** - The JSONB schema is flexible
+2. **After deploying the updated bot**, run this command in Discord as a moderator:
+   ```
+   !migratewishes
+   ```
+3. This will backfill the `channel_id` field for all existing suggestions
+4. The weekly summary will now include clickable links to original suggestion posts
+
+### New Features in This Update
+
+**Admin Commands:**
+- `!removewish <message_id>` - Remove a suggestion from the database
+- `!migratewishes` - Backfill channel_id for existing suggestions (one-time use)
+
+**Weekly Summary Enhancement:**
+- Now includes clickable links to view the original suggestion posts
+- Shows more context per suggestion (80 characters vs 50)
+
+**Pronoun Roles:**
+- New pronoun section in role setup with 13 pronoun options
+- Includes standard pronouns (he/him, she/her, they/them, etc.)
+- Includes neo pronouns (xe/xem, ze/zir, fae/faer, e/em, ve/ver)
+- Users can select multiple pronoun roles

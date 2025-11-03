@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from database import load_reaction_roles
-from config import COLOR_ROLES, EXOTIC_COLORS, SPECIAL_ROLES, DREAMER_ROLE
+from config import COLOR_ROLES, EXOTIC_COLORS, SPECIAL_ROLES, PRONOUN_ROLES, DREAMER_ROLE
 
 class ReactionEvents(commands.Cog):
     """Handle reaction role events"""
@@ -81,6 +81,20 @@ class ReactionEvents(commands.Cog):
                     except discord.Forbidden:
                         pass
 
+        # PRONOUN ROLES
+        elif msg_data['type'] == 'pronouns':
+            emoji_str = str(payload.emoji)
+
+            if emoji_str in PRONOUN_ROLES:
+                role_name = PRONOUN_ROLES[emoji_str]
+                role = discord.utils.get(guild.roles, name=role_name)
+
+                if role and role not in member.roles:
+                    try:
+                        await member.add_roles(role)
+                    except discord.Forbidden:
+                        pass
+
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload):
         if payload.user_id == self.bot.user.id:
@@ -137,6 +151,29 @@ class ReactionEvents(commands.Cog):
                         return
 
                 role_name = SPECIAL_ROLES[emoji_str]
+                role = discord.utils.get(guild.roles, name=role_name)
+
+                if role and role in member.roles:
+                    try:
+                        await member.remove_roles(role)
+                    except discord.Forbidden:
+                        pass
+
+        # Handle pronoun role removal
+        elif msg_data['type'] == 'pronouns':
+            emoji_str = str(payload.emoji)
+
+            if emoji_str in PRONOUN_ROLES:
+                guild = self.bot.get_guild(payload.guild_id)
+                member = guild.get_member(payload.user_id)
+
+                if not member:
+                    try:
+                        member = await guild.fetch_member(payload.user_id)
+                    except discord.NotFound:
+                        return
+
+                role_name = PRONOUN_ROLES[emoji_str]
                 role = discord.utils.get(guild.roles, name=role_name)
 
                 if role and role in member.roles:
