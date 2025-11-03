@@ -1,33 +1,62 @@
 # Dreambot Status
 
-**Last Updated**: 2025-11-03
-**Session**: TDF-aligned feature implementation complete
+**Last Updated**: 2025-11-03 (Session 2)
+**Session**: Wish lifecycle management and enhanced tracking
 
 ## Current State
-- Bot is live and operational with new features implemented
-- All three requested features complete and ready for deployment
-- Code follows Ahamkara theme consistently
+- Bot has comprehensive wish management system
+- Wish lifecycle: Created → Active → Granted/Removed
+- All features complete and pushed to GitHub
 - Backward compatible with existing data
 
-## Completed Work
-1. ✅ **Admin suggestion removal** - `!removewish` command implemented
-2. ✅ **Enhanced weekly summary** - Now includes clickable message links with full context
-3. ✅ **Pronoun roles** - 13 pronoun options added to role setup
-4. ✅ **Migration system** - `!migratewishes` command for existing data
-5. ✅ **Documentation** - SUPABASE_SETUP.md updated with migration guide
+## Completed Work (Session 2)
+1. ✅ **Wish lifecycle management** - Status tracking (active/granted)
+2. ✅ **!manifestwish command** - Mark wishes as granted with notes
+3. ✅ **!manifestations command** - View granted wish history
+4. ✅ **!weeklysummary command** - Manual testing trigger
+5. ✅ **Enhanced !topvideos/!topother** - Message links + active filter
+6. ✅ **Duplicate detection** - Weekly summary skips if recent
+7. ✅ **Migration updates** - Now backfills status field too
+8. ✅ **Help documentation** - All new commands documented
+
+## Completed Work (Session 1)
+1. ✅ **Admin suggestion removal** - `!removewish` command
+2. ✅ **Enhanced weekly summary** - Clickable message links
+3. ✅ **Pronoun roles** - 13 options in role setup
+4. ✅ **Migration system** - `!migratewishes` command
+5. ✅ **Documentation** - SUPABASE_SETUP.md updated
 
 ## No Supabase Changes Required
-- Existing JSONB schema is flexible enough
+- Existing JSONB schema handles all new fields
 - Only code changes needed
-- Migration command handles existing data automatically
+- Migration command handles both channel_id and status
 
 ## Next Steps
-1. Deploy updated code to production
-2. Run `!migratewishes` as moderator (one-time)
-3. Run `!setup_roles` to update role-selection channel with pronouns
-4. Monitor for any issues
+1. Deploy updated code to production (commit 6745ce1)
+2. Run `!migratewishes` as moderator (backfills channel_id + status)
+3. Run `!setup_roles` if pronoun roles not yet added
+4. Test new commands:
+   - `!manifestwish <id> notes` to grant wishes
+   - `!manifestations` to view granted wishes
+   - `!weeklysummary` to test summary manually
+
+## Command Reference
+
+**Admin Commands:**
+- `!manifestwish <id> [notes]` - Mark wish as granted
+- `!removewish <id>` - Delete wish from database
+- `!weeklysummary` - Manually post weekly summary
+- `!migratewishes` - Backfill channel_id and status
+- `!setthreshold <value>` - Adjust channel creation threshold
+
+**Public Commands:**
+- `!wish <type> <description>` - Create a wish
+- `!topvideos [limit]` - View top active video wishes
+- `!topother [limit]` - View top active other wishes
+- `!manifestations [type] [limit]` - View granted wishes
 
 ## Notes
 - All changes maintain backward compatibility
-- JSON fallback mode still works
+- Wishes without status default to 'active'
+- JSON fallback mode works with all features
 - Ahamkara theming preserved throughout

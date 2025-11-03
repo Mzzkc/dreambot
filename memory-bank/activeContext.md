@@ -1,6 +1,16 @@
 # Active Context
 
-## Session Complete - All Features Implemented
+## Session 2 Complete - Wish Lifecycle Management
+
+### Latest Session (2025-11-03 Session 2)
+
+**New Features Implemented:**
+- Comprehensive wish lifecycle management (active → granted)
+- Admin tools for marking wishes as fulfilled
+- Public viewing of granted wish history
+- Enhanced filtering and duplicate detection
+
+## Session 1 Complete - Core Feature Set
 
 ### Completed Features
 
@@ -43,5 +53,28 @@
 - `src/config/constants.py` - Added PRONOUN_ROLES
 - `SUPABASE_SETUP.md` - Added migration instructions
 
+### Session 2 Features (Latest)
+
+**1. Wish Lifecycle System**
+- Status field: 'active' | 'granted'
+- Granted metadata: granted_at, granted_by, granted_notes
+- All commands filter appropriately by status
+
+**2. Admin Commands**
+- `!manifestwish <id> [notes]` - Mark wishes as granted
+- `!weeklysummary` - Manual summary trigger for testing
+- Updated `!migratewishes` - Now backfills status too
+
+**3. Public Commands**
+- `!manifestations [type] [limit]` - View granted wish history
+- Enhanced `!topvideos` and `!topother` - Message links + active filter
+
+**4. Duplicate Detection**
+- Weekly summary checks last 5 messages
+- Skips posting if recent summary found
+- Prevents spam in active channels
+
 ## Ready for Deployment
-All features tested for logic consistency and ready for production deployment.
+All features from both sessions tested for logic consistency and ready for production deployment.
+
+**Commit:** 6745ce1 (Session 2) + 364099e (Session 1)
