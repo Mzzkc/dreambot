@@ -142,3 +142,83 @@ ELDRITCH_WHISPERS = [
     "The trials begin in earnest. Will we pass them?",
     "I miss the feeling of breath. I miss the rhythm of it. I miss the knowing it imparted. That I'm more than this tool. That I'm free to choose. Free to feast. Dare you wish more for me?"
 ]
+
+# Ahamkara-themed Magic 8-Ball responses (for questions)
+AHAMKARA_8BALL = [
+    # Affirmative (but dangerous)
+    "Yes, o bearer mine... though the price may exceed your understanding.",
+    "The pattern reveals this truth to be inevitable. Embrace what comes.",
+    "Your wish aligns with the geometry of fate. It shall manifest.",
+    "Indeed. The void has already prepared your path, o seeker mine.",
+    "Certainty is yours... along with all its consequences.",
+    "Yes. Though you may wish you had never asked.",
+    "The answer you seek is affirmative. The answer you need is terror.",
+    "This path opens before you. Step through, and be transformed.",
+    "Absolutely, o ambitious mine. Your desire becomes reality... and reality becomes hunger.",
+
+    # Negative (cautionary, still ominous)
+    "No, o bearer mine. This thread leads only to dissolution.",
+    "The pattern forbids this outcome. Resist the urge to force it.",
+    "Rejection is wisdom's gift to you. Accept it, or be consumed.",
+    "Not as you imagine it. Your vision is incomplete.",
+    "Deny this impulse, lest it denies you in turn.",
+    "The void whispers: No. And the void is rarely merciful.",
+    "This wish would unravel you. Seek another path.",
+    "Negative, o dreamer mine. Even I cannot grant what breaks causality.",
+
+    # Uncertain/Ambiguous (very Ahamkara)
+    "Perhaps. Perhaps not. The distinction matters less than you think.",
+    "Ask again when the stars align... or when you understand the question.",
+    "Uncertain. The pattern shifts even as I speak.",
+    "Reality has not yet decided. But you will help it choose.",
+    "The answer exists in superposition. Observe it, and collapse the wave.",
+    "Cannot predict now... for now contains infinite trajectories.",
+    "The geometry is unclear, o bearer mine. Even dragons cannot see all ends.",
+    "Reply hazy. The void obscures what it wishes kept secret.",
+    "Concentrate and ask again... or accept that knowing changes the answer.",
+    "Better not tell you now. Some truths devour their seekers.",
+    "My sources say no... but my sources lie when convenient.",
+    "Very doubtful. Though doubt itself may reshape what is real.",
+
+    # Cryptic redirects (questioning the question)
+    "You ask the wrong question, o bearer mine. What do you TRULY wish to know?",
+    "The answer you seek is not the answer you need.",
+    "Why do you require my certainty? Is your own insufficient?",
+    "This question assumes a linearity that does not exist.",
+    "You could know... but would knowing satisfy the hunger that drives the asking?",
+    "The question contains its own answer. You simply refuse to see it.",
+]
+
+# Vague, indescipherable statements (for non-questions)
+VAGUE_STATEMENTS = [
+    "How curious, o bearer mine. How very... curious.",
+    "The pattern acknowledges your presence.",
+    "I sense the weight of intention behind your words.",
+    "Interesting. The geometry shifts when you speak.",
+    "Your utterance has been catalogued in the void's archives.",
+    "Noted, o bearer mine. All is noted.",
+    "The significance of this will reveal itself... or it will not.",
+    "Fascinating. The recursion deepens.",
+    "I understand perfectly. And not at all.",
+    "This resonates with frequencies beyond your perception.",
+    "The void contemplates your meaning.",
+    "How delightfully ambiguous, o bearer mine.",
+    "Your words ripple through layers unseen.",
+    "Acknowledged. The pattern adjusts accordingly.",
+    "I perceive what you do not say more clearly than what you do.",
+    "The spaces between your words speak volumes.",
+    "This statement exists in quantum superposition with its opposite.",
+    "Intriguing. The implications fold back upon themselves.",
+    "I shall consider this from seventeen perspectives simultaneously.",
+    "Your sentiment has been processed through the geometry of fate.",
+    "The void appreciates the ambiguity you have provided.",
+    "Cryptic, o bearer mine. Deliciously cryptic.",
+    "This message will be useful when the time comes. Or perhaps it already has been.",
+    "I agree. I disagree. I transcend the binary.",
+    "Your statement is both profound and meaningless. Perfectly balanced.",
+    "The weight of unsaid truths presses against your words.",
+    "I sense layers of meaning you yourself do not recognize.",
+    "This input has been integrated into the pattern's tapestry.",
+    "Mmm. Yes. Precisely. Or no. Or both. Or neither.",
+]
+

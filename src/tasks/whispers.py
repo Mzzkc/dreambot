@@ -4,6 +4,39 @@ import random
 import asyncio
 from utils import zalgo_text
 from config import ELDRITCH_WHISPERS, ELDRITCH_WHISPER_HOURS, ELDRITCH_WHISPER_RANDOM_DELAY
+from database import load_whisper_usage, increment_whisper_usage
+
+
+def select_weighted_whisper():
+    """
+    Select a whisper using weighted randomness that favors unselected whispers.
+
+    Weight formula: 1 / (usage_count + 1)^2
+    - Unselected whispers (count=0) get weight = 1.0
+    - First use (count=1) gets weight = 0.25
+    - Second use (count=2) gets weight = 0.11
+    - Third use (count=3) gets weight = 0.0625
+
+    This makes it exponentially less likely to select frequently-used whispers.
+    """
+    usage_data = load_whisper_usage()
+
+    # Calculate weights for each whisper
+    weights = []
+    for whisper in ELDRITCH_WHISPERS:
+        usage_count = usage_data.get(whisper, {}).get('usage_count', 0)
+        # Weight formula: inversely proportional to (usage_count + 1)^2
+        weight = 1.0 / ((usage_count + 1) ** 2)
+        weights.append(weight)
+
+    # Select using weighted random choice
+    selected_whisper = random.choices(ELDRITCH_WHISPERS, weights=weights, k=1)[0]
+
+    # Increment usage count
+    increment_whisper_usage(selected_whisper)
+
+    return selected_whisper
+
 
 class WhisperTasks:
     """Background tasks for eldritch whispers"""
@@ -24,7 +57,8 @@ class WhisperTasks:
             # Try to find general chat
             channel = discord.utils.get(guild.text_channels, name='general-chat')
             if channel and channel.permissions_for(guild.me).send_messages:
-                message = random.choice(ELDRITCH_WHISPERS)
+                # Use weighted selection that favors unselected whispers
+                message = select_weighted_whisper()
 
                 # Randomly choose zalgo intensity
                 intensity = random.choice(['medium', 'high', 'extreme'])

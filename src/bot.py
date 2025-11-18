@@ -5,6 +5,7 @@ import asyncio
 from config import BOT_PREFIX, INTENTS
 from tasks.status import StatusTasks
 from tasks.whispers import WhisperTasks
+from utils import zalgo_embed
 
 class DreambotClient(commands.Bot):
     """Custom bot class with integrated functionality"""
@@ -24,7 +25,8 @@ class DreambotClient(commands.Bot):
             'cogs.utilities',
             'cogs.suggestions',
             'events.member_events',
-            'events.reaction_events'
+            'events.reaction_events',
+            'events.message_events'
         ]
 
         for cog in cogs:
@@ -46,20 +48,20 @@ class DreambotClient(commands.Bot):
     async def on_command_error(self, ctx, error):
         """Global error handler"""
         if isinstance(error, commands.CheckFailure):
-            embed = discord.Embed(
-                description="*Only the Eldritch Enforcers and Wish Dragons may wield this power, o bearer mine...*",
+            embed = zalgo_embed(
+                description="Only the Eldritch Enforcers and Wish Dragons may wield this power, o bearer mine...",
                 color=discord.Color.red()
             )
             await ctx.send(embed=embed)
         elif isinstance(error, commands.MissingPermissions):
-            embed = discord.Embed(
-                description="*Your wishes exceed your power, o ambitious mine...*",
+            embed = zalgo_embed(
+                description="Your wishes exceed your power, o ambitious mine...",
                 color=discord.Color.red()
             )
             await ctx.send(embed=embed)
         elif isinstance(error, commands.BadArgument):
-            embed = discord.Embed(
-                description="*The pattern does not recognize this form...*",
+            embed = zalgo_embed(
+                description="The pattern does not recognize this form...",
                 color=discord.Color.red()
             )
             await ctx.send(embed=embed)

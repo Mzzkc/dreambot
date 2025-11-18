@@ -1,5 +1,6 @@
 import random
 
+
 def zalgo_text(text, intensity='medium'):
     """Generate zalgo text with comprehensive coverage"""
     zalgo_up = [
@@ -45,3 +46,31 @@ def zalgo_text(text, intensity='medium'):
             result += random.choice(zalgo_down)
 
     return result
+
+
+def zalgo_embed(description=None, title=None, color=None, **kwargs):
+    """
+    Create an embed with zalgo-transformed description.
+
+    Args:
+        description: Main description text (will be zalgo'd with 'low' intensity)
+        title: Title text (not zalgo'd for readability)
+        color: Embed color
+        **kwargs: Any other discord.Embed parameters
+
+    Returns:
+        discord.Embed with zalgo-transformed description
+    """
+    import discord
+
+    embed = discord.Embed(color=color or discord.Color.dark_purple(), **kwargs)
+
+    if title:
+        embed.title = title
+
+    if description:
+        # Apply low intensity for readability in embeds
+        zalgo_desc = zalgo_text(description, intensity='low')
+        embed.description = zalgo_desc
+
+    return embed
