@@ -38,39 +38,43 @@ def is_question(text):
 
 
 def select_weighted_8ball():
-    """Select a magic 8-ball response using weighted randomness."""
+    """Select a magic 8-ball response using weighted randomness (ID-based)."""
     usage_data = load_8ball_usage()
 
-    # Calculate weights
+    # Calculate weights based on ID usage
     weights = []
     for response in AHAMKARA_8BALL:
-        usage_count = usage_data.get(response, {}).get('usage_count', 0)
+        response_id = response["id"]
+        usage_count = usage_data.get(response_id, {}).get('usage_count', 0)
         weight = 1.0 / ((usage_count + 1) ** 2)
         weights.append(weight)
 
-    # Select and increment
+    # Select response object and increment
     selected = random.choices(AHAMKARA_8BALL, weights=weights, k=1)[0]
-    increment_8ball_usage(selected)
+    increment_8ball_usage(selected["id"], selected["text"])
 
-    return selected
+    # Return just the text for display
+    return selected["text"]
 
 
 def select_weighted_vague():
-    """Select a vague statement using weighted randomness."""
+    """Select a vague statement using weighted randomness (ID-based)."""
     usage_data = load_vague_usage()
 
-    # Calculate weights
+    # Calculate weights based on ID usage
     weights = []
     for statement in VAGUE_STATEMENTS:
-        usage_count = usage_data.get(statement, {}).get('usage_count', 0)
+        statement_id = statement["id"]
+        usage_count = usage_data.get(statement_id, {}).get('usage_count', 0)
         weight = 1.0 / ((usage_count + 1) ** 2)
         weights.append(weight)
 
-    # Select and increment
+    # Select statement object and increment
     selected = random.choices(VAGUE_STATEMENTS, weights=weights, k=1)[0]
-    increment_vague_usage(selected)
+    increment_vague_usage(selected["id"], selected["text"])
 
-    return selected
+    # Return just the text for display
+    return selected["text"]
 
 
 class MessageEvents(commands.Cog):
