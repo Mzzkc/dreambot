@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import random
 from utils import has_mod_role, zalgo_text, zalgo_embed
-from config import ELDRITCH_WHISPERS
+from tasks.whispers import select_weighted_whisper
 
 class Utilities(commands.Cog):
     """Utility commands for various bot functions"""
@@ -13,8 +13,9 @@ class Utilities(commands.Cog):
     @commands.command()
     @has_mod_role()
     async def whisper(self, ctx):
-        """Summon an eldritch whisper"""
-        message = random.choice(ELDRITCH_WHISPERS)
+        """Summon an eldritch whisper (uses weighted selection)"""
+        # Use weighted selection (same algorithm as periodic whispers)
+        message = select_weighted_whisper()
         intensity = random.choice(['high', 'extreme'])
         zalgo_message = zalgo_text(message, intensity)
         await ctx.send(f"*{zalgo_message}*")
