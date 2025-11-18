@@ -1,17 +1,28 @@
 import os
 import json
+import logging
 from supabase import create_client, Client
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class BotDatabase:
     def __init__(self):
         url = os.getenv('SUPABASE_URL')
         key = os.getenv('SUPABASE_KEY')
-        
+
         if url and key:
-            self.supabase: Client = create_client(url, key)
-            self.init_tables()
+            try:
+                self.supabase: Client = create_client(url, key)
+                self.init_tables()
+                logger.info("[Database] Initialized with Supabase connection")
+            except Exception as e:
+                logger.error(f"[Database] Failed to initialize Supabase: {type(e).__name__}: {e}")
+                logger.warning("[Database] Falling back to JSON storage")
+                self.supabase = None
+                self.use_json = True
         else:
-            print("WARNING: No Supabase credentials found, using JSON fallback")
+            logger.warning("[Database] No Supabase credentials found, using JSON fallback")
             self.supabase = None
             # Fallback to JSON files
             self.use_json = True
@@ -26,47 +37,73 @@ class BotDatabase:
         if not self.supabase:
             try:
                 with open('reaction_roles.json', 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    logger.info(f"[Database] load_reaction_roles: Success ({len(data)} items from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_reaction_roles: No JSON file found, returning empty dict")
                 return {}
-        
+            except Exception as e:
+                logger.error(f"[Database] load_reaction_roles: JSON read failed: {type(e).__name__}: {e}")
+                return {}
+
         try:
             response = self.supabase.table('reaction_roles').select("*").execute()
-            return {item['message_id']: item['data'] for item in response.data}
-        except:
+            data = {item['message_id']: item['data'] for item in response.data}
+            logger.info(f"[Database] load_reaction_roles: Success ({len(data)} items from Supabase)")
+            return data
+        except Exception as e:
+            logger.error(f"[Database] load_reaction_roles: Supabase query failed: {type(e).__name__}: {e}")
             return {}
     
     def save_reaction_roles(self, data):
         """Save reaction roles to Supabase or JSON"""
         if not self.supabase:
-            with open('reaction_roles.json', 'w') as f:
-                json.dump(data, f)
+            try:
+                with open('reaction_roles.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_reaction_roles: Success ({len(data)} items to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_reaction_roles: JSON write failed: {type(e).__name__}: {e}")
             return
-        
+
         try:
             # Clear existing
             self.supabase.table('reaction_roles').delete().neq('message_id', '0').execute()
-            
+
             # Insert new data
             for message_id, msg_data in data.items():
                 self.supabase.table('reaction_roles').upsert({
                     'message_id': message_id,
                     'data': msg_data
                 }).execute()
+            logger.info(f"[Database] save_reaction_roles: Success ({len(data)} items to Supabase)")
         except Exception as e:
-            print(f"Database error, falling back to JSON: {e}")
-            with open('reaction_roles.json', 'w') as f:
-                json.dump(data, f)
+            logger.warning(f"[Database] save_reaction_roles: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('reaction_roles.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_reaction_roles: JSON fallback successful ({len(data)} items)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_reaction_roles: JSON fallback failed: {type(json_e).__name__}: {json_e}")
     
     def load_warnings(self):
         """Load warnings from Supabase or JSON"""
         if not self.supabase:
             try:
                 with open('warnings.json', 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    # Count total warnings across all guilds/users
+                    count = sum(len(users) for users in data.values())
+                    logger.info(f"[Database] load_warnings: Success ({count} users from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_warnings: No JSON file found, returning empty dict")
                 return {}
-        
+            except Exception as e:
+                logger.error(f"[Database] load_warnings: JSON read failed: {type(e).__name__}: {e}")
+                return {}
+
         try:
             response = self.supabase.table('warnings').select("*").execute()
             warnings_dict = {}
@@ -76,15 +113,24 @@ class BotDatabase:
                 if guild_id not in warnings_dict:
                     warnings_dict[guild_id] = {}
                 warnings_dict[guild_id][user_id] = item['warnings']
+            count = sum(len(users) for users in warnings_dict.values())
+            logger.info(f"[Database] load_warnings: Success ({count} users from Supabase)")
             return warnings_dict
-        except:
+        except Exception as e:
+            logger.error(f"[Database] load_warnings: Supabase query failed: {type(e).__name__}: {e}")
             return {}
     
     def save_warnings(self, data):
         """Save warnings to Supabase or JSON"""
+        count = sum(len(users) for users in data.values())
+
         if not self.supabase:
-            with open('warnings.json', 'w') as f:
-                json.dump(data, f)
+            try:
+                with open('warnings.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_warnings: Success ({count} users to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_warnings: JSON write failed: {type(e).__name__}: {e}")
             return
 
         try:
@@ -99,31 +145,49 @@ class BotDatabase:
                         'user_id': user_id,
                         'warnings': user_warnings
                     }).execute()
+            logger.info(f"[Database] save_warnings: Success ({count} users to Supabase)")
         except Exception as e:
-            print(f"Database error, falling back to JSON: {e}")
-            with open('warnings.json', 'w') as f:
-                json.dump(data, f)
+            logger.warning(f"[Database] save_warnings: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('warnings.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_warnings: JSON fallback successful ({count} users)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_warnings: JSON fallback failed: {type(json_e).__name__}: {json_e}")
 
     def load_suggestions(self):
         """Load suggestions from Supabase or JSON"""
         if not self.supabase:
             try:
                 with open('suggestions.json', 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    logger.info(f"[Database] load_suggestions: Success ({len(data)} items from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_suggestions: No JSON file found, returning empty dict")
+                return {}
+            except Exception as e:
+                logger.error(f"[Database] load_suggestions: JSON read failed: {type(e).__name__}: {e}")
                 return {}
 
         try:
             response = self.supabase.table('suggestions').select("*").execute()
-            return {item['message_id']: item['data'] for item in response.data}
-        except:
+            data = {item['message_id']: item['data'] for item in response.data}
+            logger.info(f"[Database] load_suggestions: Success ({len(data)} items from Supabase)")
+            return data
+        except Exception as e:
+            logger.error(f"[Database] load_suggestions: Supabase query failed: {type(e).__name__}: {e}")
             return {}
 
     def save_suggestions(self, data):
         """Save suggestions to Supabase or JSON"""
         if not self.supabase:
-            with open('suggestions.json', 'w') as f:
-                json.dump(data, f)
+            try:
+                with open('suggestions.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_suggestions: Success ({len(data)} items to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_suggestions: JSON write failed: {type(e).__name__}: {e}")
             return
 
         try:
@@ -136,36 +200,54 @@ class BotDatabase:
                     'message_id': message_id,
                     'data': suggestion_data
                 }).execute()
+            logger.info(f"[Database] save_suggestions: Success ({len(data)} items to Supabase)")
         except Exception as e:
-            print(f"Database error, falling back to JSON: {e}")
-            with open('suggestions.json', 'w') as f:
-                json.dump(data, f)
+            logger.warning(f"[Database] save_suggestions: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('suggestions.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_suggestions: JSON fallback successful ({len(data)} items)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_suggestions: JSON fallback failed: {type(json_e).__name__}: {json_e}")
 
     def load_whisper_usage(self):
         """Load whisper usage statistics from Supabase or JSON"""
         if not self.supabase:
             try:
                 with open('whisper_usage.json', 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    logger.info(f"[Database] load_whisper_usage: Success ({len(data)} whispers from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_whisper_usage: No JSON file found, returning empty dict")
+                return {}
+            except Exception as e:
+                logger.error(f"[Database] load_whisper_usage: JSON read failed: {type(e).__name__}: {e}")
                 return {}
 
         try:
             response = self.supabase.table('whisper_usage').select("*").execute()
             # Return dict keyed by whisper_id
-            return {item['whisper_id']: {
+            data = {item['whisper_id']: {
                 'text': item['whisper_text'],
                 'usage_count': item['usage_count'],
                 'last_used': item['last_used']
             } for item in response.data}
-        except:
+            logger.info(f"[Database] load_whisper_usage: Success ({len(data)} whispers from Supabase)")
+            return data
+        except Exception as e:
+            logger.error(f"[Database] load_whisper_usage: Supabase query failed: {type(e).__name__}: {e}")
             return {}
 
     def save_whisper_usage(self, data):
         """Save whisper usage statistics to Supabase or JSON"""
         if not self.supabase:
-            with open('whisper_usage.json', 'w') as f:
-                json.dump(data, f, indent=2)
+            try:
+                with open('whisper_usage.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_whisper_usage: Success ({len(data)} whispers to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_whisper_usage: JSON write failed: {type(e).__name__}: {e}")
             return
 
         try:
@@ -180,53 +262,78 @@ class BotDatabase:
                     'usage_count': stats['usage_count'],
                     'last_used': stats['last_used']
                 }).execute()
+            logger.info(f"[Database] save_whisper_usage: Success ({len(data)} whispers to Supabase)")
         except Exception as e:
-            print(f"Database error, falling back to JSON: {e}")
-            with open('whisper_usage.json', 'w') as f:
-                json.dump(data, f, indent=2)
+            logger.warning(f"[Database] save_whisper_usage: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('whisper_usage.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_whisper_usage: JSON fallback successful ({len(data)} whispers)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_whisper_usage: JSON fallback failed: {type(json_e).__name__}: {json_e}")
 
     def increment_whisper_usage(self, whisper_id, whisper_text):
         """Increment usage count for a whisper (ID-based)"""
         from datetime import datetime, timezone
 
-        usage_data = self.load_whisper_usage()
+        try:
+            usage_data = self.load_whisper_usage()
 
-        if whisper_id not in usage_data:
-            usage_data[whisper_id] = {'text': whisper_text, 'usage_count': 0, 'last_used': None}
+            if whisper_id not in usage_data:
+                usage_data[whisper_id] = {'text': whisper_text, 'usage_count': 0, 'last_used': None}
+                logger.debug(f"[Database] increment_whisper_usage: New whisper '{whisper_id}'")
 
-        # Update both usage AND text (in case text was edited in constants.py)
-        usage_data[whisper_id]['text'] = whisper_text
-        usage_data[whisper_id]['usage_count'] += 1
-        usage_data[whisper_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            # Update both usage AND text (in case text was edited in constants.py)
+            usage_data[whisper_id]['text'] = whisper_text
+            usage_data[whisper_id]['usage_count'] += 1
+            usage_data[whisper_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            new_count = usage_data[whisper_id]['usage_count']
 
-        self.save_whisper_usage(usage_data)
-        return usage_data[whisper_id]['usage_count']
+            self.save_whisper_usage(usage_data)
+            logger.debug(f"[Database] increment_whisper_usage: '{whisper_id}' now at {new_count} uses")
+            return new_count
+        except Exception as e:
+            logger.error(f"[Database] increment_whisper_usage: Failed for '{whisper_id}': {type(e).__name__}: {e}")
+            return 1  # Return 1 as fallback to indicate it was used once
 
     def load_8ball_usage(self):
         """Load 8-ball response usage statistics from Supabase or JSON"""
         if not self.supabase:
             try:
                 with open('8ball_usage.json', 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    logger.info(f"[Database] load_8ball_usage: Success ({len(data)} responses from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_8ball_usage: No JSON file found, returning empty dict")
+                return {}
+            except Exception as e:
+                logger.error(f"[Database] load_8ball_usage: JSON read failed: {type(e).__name__}: {e}")
                 return {}
 
         try:
             response = self.supabase.table('response_8ball_usage').select("*").execute()
             # Return dict keyed by response_id
-            return {item['response_id']: {
+            data = {item['response_id']: {
                 'text': item['response_text'],
                 'usage_count': item['usage_count'],
                 'last_used': item['last_used']
             } for item in response.data}
-        except:
+            logger.info(f"[Database] load_8ball_usage: Success ({len(data)} responses from Supabase)")
+            return data
+        except Exception as e:
+            logger.error(f"[Database] load_8ball_usage: Supabase query failed: {type(e).__name__}: {e}")
             return {}
 
     def save_8ball_usage(self, data):
         """Save 8-ball response usage statistics to Supabase or JSON"""
         if not self.supabase:
-            with open('8ball_usage.json', 'w') as f:
-                json.dump(data, f, indent=2)
+            try:
+                with open('8ball_usage.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_8ball_usage: Success ({len(data)} responses to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_8ball_usage: JSON write failed: {type(e).__name__}: {e}")
             return
 
         try:
@@ -241,53 +348,78 @@ class BotDatabase:
                     'usage_count': stats['usage_count'],
                     'last_used': stats['last_used']
                 }).execute()
+            logger.info(f"[Database] save_8ball_usage: Success ({len(data)} responses to Supabase)")
         except Exception as e:
-            print(f"Database error, falling back to JSON: {e}")
-            with open('8ball_usage.json', 'w') as f:
-                json.dump(data, f, indent=2)
+            logger.warning(f"[Database] save_8ball_usage: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('8ball_usage.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_8ball_usage: JSON fallback successful ({len(data)} responses)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_8ball_usage: JSON fallback failed: {type(json_e).__name__}: {json_e}")
 
     def increment_8ball_usage(self, response_id, response_text):
         """Increment usage count for an 8-ball response (ID-based)"""
         from datetime import datetime, timezone
 
-        usage_data = self.load_8ball_usage()
+        try:
+            usage_data = self.load_8ball_usage()
 
-        if response_id not in usage_data:
-            usage_data[response_id] = {'text': response_text, 'usage_count': 0, 'last_used': None}
+            if response_id not in usage_data:
+                usage_data[response_id] = {'text': response_text, 'usage_count': 0, 'last_used': None}
+                logger.debug(f"[Database] increment_8ball_usage: New response '{response_id}'")
 
-        # Update both usage AND text (in case text was edited in constants.py)
-        usage_data[response_id]['text'] = response_text
-        usage_data[response_id]['usage_count'] += 1
-        usage_data[response_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            # Update both usage AND text (in case text was edited in constants.py)
+            usage_data[response_id]['text'] = response_text
+            usage_data[response_id]['usage_count'] += 1
+            usage_data[response_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            new_count = usage_data[response_id]['usage_count']
 
-        self.save_8ball_usage(usage_data)
-        return usage_data[response_id]['usage_count']
+            self.save_8ball_usage(usage_data)
+            logger.debug(f"[Database] increment_8ball_usage: '{response_id}' now at {new_count} uses")
+            return new_count
+        except Exception as e:
+            logger.error(f"[Database] increment_8ball_usage: Failed for '{response_id}': {type(e).__name__}: {e}")
+            return 1  # Return 1 as fallback to indicate it was used once
 
     def load_vague_usage(self):
         """Load vague statement usage statistics from Supabase or JSON"""
         if not self.supabase:
             try:
                 with open('vague_usage.json', 'r') as f:
-                    return json.load(f)
-            except:
+                    data = json.load(f)
+                    logger.info(f"[Database] load_vague_usage: Success ({len(data)} statements from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_vague_usage: No JSON file found, returning empty dict")
+                return {}
+            except Exception as e:
+                logger.error(f"[Database] load_vague_usage: JSON read failed: {type(e).__name__}: {e}")
                 return {}
 
         try:
             response = self.supabase.table('response_vague_usage').select("*").execute()
             # Return dict keyed by statement_id
-            return {item['statement_id']: {
+            data = {item['statement_id']: {
                 'text': item['statement_text'],
                 'usage_count': item['usage_count'],
                 'last_used': item['last_used']
             } for item in response.data}
-        except:
+            logger.info(f"[Database] load_vague_usage: Success ({len(data)} statements from Supabase)")
+            return data
+        except Exception as e:
+            logger.error(f"[Database] load_vague_usage: Supabase query failed: {type(e).__name__}: {e}")
             return {}
 
     def save_vague_usage(self, data):
         """Save vague statement usage statistics to Supabase or JSON"""
         if not self.supabase:
-            with open('vague_usage.json', 'w') as f:
-                json.dump(data, f, indent=2)
+            try:
+                with open('vague_usage.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_vague_usage: Success ({len(data)} statements to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_vague_usage: JSON write failed: {type(e).__name__}: {e}")
             return
 
         try:
@@ -302,27 +434,39 @@ class BotDatabase:
                     'usage_count': stats['usage_count'],
                     'last_used': stats['last_used']
                 }).execute()
+            logger.info(f"[Database] save_vague_usage: Success ({len(data)} statements to Supabase)")
         except Exception as e:
-            print(f"Database error, falling back to JSON: {e}")
-            with open('vague_usage.json', 'w') as f:
-                json.dump(data, f, indent=2)
+            logger.warning(f"[Database] save_vague_usage: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('vague_usage.json', 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_vague_usage: JSON fallback successful ({len(data)} statements)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_vague_usage: JSON fallback failed: {type(json_e).__name__}: {json_e}")
 
     def increment_vague_usage(self, statement_id, statement_text):
         """Increment usage count for a vague statement (ID-based)"""
         from datetime import datetime, timezone
 
-        usage_data = self.load_vague_usage()
+        try:
+            usage_data = self.load_vague_usage()
 
-        if statement_id not in usage_data:
-            usage_data[statement_id] = {'text': statement_text, 'usage_count': 0, 'last_used': None}
+            if statement_id not in usage_data:
+                usage_data[statement_id] = {'text': statement_text, 'usage_count': 0, 'last_used': None}
+                logger.debug(f"[Database] increment_vague_usage: New statement '{statement_id}'")
 
-        # Update both usage AND text (in case text was edited in constants.py)
-        usage_data[statement_id]['text'] = statement_text
-        usage_data[statement_id]['usage_count'] += 1
-        usage_data[statement_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            # Update both usage AND text (in case text was edited in constants.py)
+            usage_data[statement_id]['text'] = statement_text
+            usage_data[statement_id]['usage_count'] += 1
+            usage_data[statement_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            new_count = usage_data[statement_id]['usage_count']
 
-        self.save_vague_usage(usage_data)
-        return usage_data[statement_id]['usage_count']
+            self.save_vague_usage(usage_data)
+            logger.debug(f"[Database] increment_vague_usage: '{statement_id}' now at {new_count} uses")
+            return new_count
+        except Exception as e:
+            logger.error(f"[Database] increment_vague_usage: Failed for '{statement_id}': {type(e).__name__}: {e}")
+            return 1  # Return 1 as fallback to indicate it was used once
 
 # Create global instance
 db = BotDatabase()
