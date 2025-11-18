@@ -1047,10 +1047,19 @@ class Suggestions(commands.Cog):
 
             util_commands = """
             `!whisper` - Summon an eldritch whisper
+            `!speak <message>` - Manifest zalgo whispers to #general-chat
             `!ping` - Test the void's echo
             `!help` - Reveal this codex
             """
             embed.add_field(name="🔮 Arcane Utilities", value=util_commands, inline=False)
+
+            interactive_features = """
+            `@Dreambot <question>` - Receive cryptic prophecy (35 responses)
+            `@Dreambot <statement>` - Receive vague acknowledgment (29 responses)
+            • All responses manifest through extreme zalgo transformation
+            • Weighted selection favors variety in responses
+            """
+            embed.add_field(name="🎱 Interactive Manifestations", value=interactive_features, inline=False)
 
             embed.add_field(
                 name="📝 Notes",
@@ -1086,6 +1095,14 @@ class Suggestions(commands.Cog):
             `!ping` - Test the void's echo
             """
             embed.add_field(name="🔮 Arcane Knowledge", value=info_commands, inline=False)
+
+            interactive_features = """
+            `@Dreambot <question>` - Receive cryptic prophecy (35 responses)
+            `@Dreambot <statement>` - Receive vague acknowledgment (29 responses)
+            • All responses manifest through extreme zalgo transformation
+            • Weighted selection favors variety in responses
+            """
+            embed.add_field(name="🎱 Interactive Manifestations", value=interactive_features, inline=False)
 
             if not has_dreamer:
                 embed.add_field(

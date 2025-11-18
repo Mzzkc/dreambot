@@ -106,9 +106,6 @@ class MessageEvents(commands.Cog):
             # Send as italicized plain text
             await message.channel.send(f"*{zalgo_response}*")
 
-        # Still process commands
-        await self.bot.process_commands(message)
-
 
 async def setup(bot):
     await bot.add_cog(MessageEvents(bot))
