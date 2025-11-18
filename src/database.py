@@ -152,8 +152,9 @@ class BotDatabase:
 
         try:
             response = self.supabase.table('whisper_usage').select("*").execute()
-            # Return dict with whisper_text as key
-            return {item['whisper_text']: {
+            # Return dict keyed by whisper_id
+            return {item['whisper_id']: {
+                'text': item['whisper_text'],
                 'usage_count': item['usage_count'],
                 'last_used': item['last_used']
             } for item in response.data}
@@ -164,39 +165,42 @@ class BotDatabase:
         """Save whisper usage statistics to Supabase or JSON"""
         if not self.supabase:
             with open('whisper_usage.json', 'w') as f:
-                json.dump(data, f)
+                json.dump(data, f, indent=2)
             return
 
         try:
             # Clear existing
-            self.supabase.table('whisper_usage').delete().neq('whisper_text', '').execute()
+            self.supabase.table('whisper_usage').delete().neq('whisper_id', '').execute()
 
             # Insert new data
-            for whisper_text, stats in data.items():
+            for whisper_id, stats in data.items():
                 self.supabase.table('whisper_usage').upsert({
-                    'whisper_text': whisper_text,
+                    'whisper_id': whisper_id,
+                    'whisper_text': stats['text'],
                     'usage_count': stats['usage_count'],
                     'last_used': stats['last_used']
                 }).execute()
         except Exception as e:
             print(f"Database error, falling back to JSON: {e}")
             with open('whisper_usage.json', 'w') as f:
-                json.dump(data, f)
+                json.dump(data, f, indent=2)
 
-    def increment_whisper_usage(self, whisper_text):
-        """Increment usage count for a specific whisper"""
+    def increment_whisper_usage(self, whisper_id, whisper_text):
+        """Increment usage count for a whisper (ID-based)"""
         from datetime import datetime, timezone
 
         usage_data = self.load_whisper_usage()
 
-        if whisper_text not in usage_data:
-            usage_data[whisper_text] = {'usage_count': 0, 'last_used': None}
+        if whisper_id not in usage_data:
+            usage_data[whisper_id] = {'text': whisper_text, 'usage_count': 0, 'last_used': None}
 
-        usage_data[whisper_text]['usage_count'] += 1
-        usage_data[whisper_text]['last_used'] = datetime.now(timezone.utc).isoformat()
+        # Update both usage AND text (in case text was edited in constants.py)
+        usage_data[whisper_id]['text'] = whisper_text
+        usage_data[whisper_id]['usage_count'] += 1
+        usage_data[whisper_id]['last_used'] = datetime.now(timezone.utc).isoformat()
 
         self.save_whisper_usage(usage_data)
-        return usage_data[whisper_text]['usage_count']
+        return usage_data[whisper_id]['usage_count']
 
     def load_8ball_usage(self):
         """Load 8-ball response usage statistics from Supabase or JSON"""
@@ -348,8 +352,8 @@ def load_whisper_usage():
 def save_whisper_usage(data):
     db.save_whisper_usage(data)
 
-def increment_whisper_usage(whisper_text):
-    return db.increment_whisper_usage(whisper_text)
+def increment_whisper_usage(whisper_id, whisper_text):
+    return db.increment_whisper_usage(whisper_id, whisper_text)
 
 def load_8ball_usage():
     return db.load_8ball_usage()

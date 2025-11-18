@@ -26,8 +26,11 @@ CREATE TABLE IF NOT EXISTS suggestions (
 );
 
 -- Whisper usage tracking table
+-- whisper_id is stable across text edits (e.g. "whisper_001")
+-- whisper_text can be updated when wording changes
 CREATE TABLE IF NOT EXISTS whisper_usage (
-    whisper_text TEXT PRIMARY KEY,
+    whisper_id TEXT PRIMARY KEY,
+    whisper_text TEXT NOT NULL,
     usage_count INTEGER NOT NULL DEFAULT 0,
     last_used TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

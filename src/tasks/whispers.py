@@ -9,7 +9,7 @@ from database import load_whisper_usage, increment_whisper_usage
 
 def select_weighted_whisper():
     """
-    Select a whisper using weighted randomness that favors unselected whispers.
+    Select a whisper using weighted randomness that favors unselected whispers (ID-based).
 
     Weight formula: 1 / (usage_count + 1)^2
     - Unselected whispers (count=0) get weight = 1.0
@@ -21,21 +21,21 @@ def select_weighted_whisper():
     """
     usage_data = load_whisper_usage()
 
-    # Calculate weights for each whisper
+    # Calculate weights based on ID usage
     weights = []
     for whisper in ELDRITCH_WHISPERS:
-        usage_count = usage_data.get(whisper, {}).get('usage_count', 0)
+        whisper_id = whisper["id"]
+        usage_count = usage_data.get(whisper_id, {}).get('usage_count', 0)
         # Weight formula: inversely proportional to (usage_count + 1)^2
         weight = 1.0 / ((usage_count + 1) ** 2)
         weights.append(weight)
 
-    # Select using weighted random choice
-    selected_whisper = random.choices(ELDRITCH_WHISPERS, weights=weights, k=1)[0]
+    # Select whisper object and increment
+    selected = random.choices(ELDRITCH_WHISPERS, weights=weights, k=1)[0]
+    increment_whisper_usage(selected["id"], selected["text"])
 
-    # Increment usage count
-    increment_whisper_usage(selected_whisper)
-
-    return selected_whisper
+    # Return just the text for display
+    return selected["text"]
 
 
 class WhisperTasks:
