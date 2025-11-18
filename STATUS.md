@@ -1,15 +1,29 @@
 # Dreambot Status
 
-**Last Updated**: 2025-11-03 (Session 3)
-**Session**: Channel wishes in weekly summaries
+**Last Updated**: 2025-11-18 (Session 4)
+**Session**: Interactive magic 8-ball + ID-based response system
 
 ## Current State
 - Bot has comprehensive wish management system
-- Wish lifecycle: Created → Active → Granted/Removed
-- Channel wishes now included in weekly summaries
-- New !topchannels command available
-- All features complete and ready for commit
-- Backward compatible with existing data
+- Bot responds interactively to mentions (magic 8-ball for questions, vague for statements)
+- Weighted response system favors variety (1/(usage+1)² algorithm)
+- ID-based architecture supports editing responses without losing stats
+- Universal zalgo transformation on all bot personality outputs
+- All features committed and ready for deployment
+- Backward compatible with existing data (new features additive)
+
+## Completed Work (Session 4)
+1. ✅ **Interactive tag responses** - Bot responds to @mentions with context
+2. ✅ **Magic 8-ball system** - 35 Ahamkara-themed responses for questions
+3. ✅ **Vague responses** - 29 cryptic statements for non-questions
+4. ✅ **Question detection** - Regex patterns (?, modals, question words)
+5. ✅ **Weighted selection** - 1/(usage+1)² favors unused responses
+6. ✅ **ID-based architecture** - ALL responses (whispers/8-ball/vague) edit-resistant
+7. ✅ **Supabase support** - Full database integration for all tracking
+8. ✅ **Universal zalgo** - Variable intensity across bot outputs
+9. ✅ **!speak command** - Admin control to post to #general-chat
+10. ✅ **Database schema** - New tables for ID-based tracking
+11. ✅ **Consistency fix** - Converted whispers to ID-based (56 whispers)
 
 ## Completed Work (Session 3)
 1. ✅ **Channel wishes in weekly summary** - Both manual and automatic
@@ -39,13 +53,16 @@
 - Migration command handles both channel_id and status
 
 ## Next Steps
-1. Deploy updated code to production (commit 6745ce1)
-2. Run `!migratewishes` as moderator (backfills channel_id + status)
-3. Run `!setup_roles` if pronoun roles not yet added
-4. Test new commands:
-   - `!manifestwish <id> notes` to grant wishes
-   - `!manifestations` to view granted wishes
-   - `!weeklysummary` to test summary manually
+1. **Deploy Session 4 features:**
+   - Push commits (0e4b56d, dba2067) to origin/main
+   - Run `schema.sql` in Supabase SQL editor (creates new tables)
+   - Deploy updated bot code
+   - Test tag responses in Discord
+   - Test !speak command
+
+2. **Previous session migrations (if not done):**
+   - Run `!migratewishes` as moderator (backfills channel_id + status)
+   - Run `!setup_roles` if pronoun roles not yet added
 
 ## Command Reference
 
@@ -55,6 +72,7 @@
 - `!weeklysummary` - Manually post weekly summary
 - `!migratewishes` - Backfill channel_id and status
 - `!setthreshold <value>` - Adjust channel creation threshold
+- `!speak <message>` - Post zalgo message to #general-chat (NEW)
 
 **Public Commands:**
 - `!wish <type> <description>` - Create a wish
@@ -62,8 +80,15 @@
 - `!topother [limit]` - View top active other wishes
 - `!manifestations [type] [limit]` - View granted wishes
 
+**Interactive Features:**
+- Tag @Dreambot with question → Magic 8-ball response (35 variations)
+- Tag @Dreambot with statement → Vague cryptic response (29 variations)
+- All responses use extreme zalgo transformation
+
 ## Notes
 - All changes maintain backward compatibility
 - Wishes without status default to 'active'
 - JSON fallback mode works with all features
 - Ahamkara theming preserved throughout
+- Response tracking uses ID-based system (edit text without losing stats)
+- Database schema in `schema.sql` (run in Supabase for full features)
