@@ -1,7 +1,7 @@
 # Dreambot Status
 
-**Last Updated**: 2025-11-18 (Session 5)
-**Session**: Database error handling and logging enhancements
+**Last Updated**: 2025-11-19 (Session 6)
+**Session**: Bug fixes and help command updates
 
 ## Current State
 - Bot has comprehensive wish management system
@@ -9,10 +9,18 @@
 - Weighted response system favors variety (1/(usage+1)² algorithm)
 - ID-based architecture supports editing responses without losing stats
 - Universal zalgo transformation on all bot personality outputs
-- **NEW:** Comprehensive database error logging across all operations
-- **NEW:** Graceful error handling with detailed diagnostics
+- Comprehensive database error logging across all operations
+- Graceful error handling with detailed diagnostics
+- **NEW:** Help command updated with Session 4 features documented
+- **NEW:** Double response bug fixed (commands now execute once)
+- **NEW:** Status display uses proper activity constructors (Playing/Watching/Listening)
 - All features committed and ready for deployment
 - Backward compatible with existing data (new features additive)
+
+## Completed Work (Session 6)
+1. ✅ **Help command updates** - Documented !speak and @mention features for both mod/user help
+2. ✅ **Double response bug fix** - Removed duplicate process_commands() call in message_events.py
+3. ✅ **Status display fix** - Use discord.Game() for Playing, proper Activity constructors for Watching/Listening
 
 ## Completed Work (Session 5)
 1. ✅ **Database error logging** - Comprehensive logging across all 13 database methods

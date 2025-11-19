@@ -1,8 +1,38 @@
 # Active Context
 
+## Session 6 Complete - Bug Fixes & Documentation Updates
+
+### Latest Session (2025-11-19 Session 6)
+
+**Bug Fixes Implemented:**
+- Fixed double response bug: Removed duplicate `process_commands()` call in message_events.py
+  - Cause: Cog listener doesn't need manual command processing (bot handles automatically)
+  - Effect: All commands now execute once instead of twice
+- Fixed status display: Use proper discord.py activity constructors
+  - discord.Game() for "Playing" status
+  - discord.Activity() with explicit type for "Watching" and "Listening"
+  - Ensures activity type prefix displays correctly
+- Updated help command documentation
+  - Added !speak command to mod help (Arcane Utilities section)
+  - Added interactive @mention features to both mod and user help (new section: Interactive Manifestations)
+  - Help now reflects all Session 4 features
+
+**Technical Details:**
+- Modified: `src/cogs/suggestions.py` (help command lines 1048-1105)
+- Modified: `src/events/message_events.py` (removed line 110)
+- Modified: `src/tasks/status.py` (lines 16-37 refactored)
+- All changes committed and pushed to origin/main
+
+**Commits:**
+- `ad39709` - Update help command and fix double response bug
+- `0eb8950` - Fix bot status display to show activity types properly
+
+**Status Display Note:**
+User reported status may not show "Playing/Watching/Listening" prefix. Web search found no evidence Discord removed this feature (still works in 2024-2025). Possible causes: client-side rendering, Discord A/B testing, or platform-specific display differences. Code now uses recommended constructors per discord.py 2.x best practices.
+
 ## Session 5 Complete - Database Error Handling & Logging
 
-### Latest Session (2025-11-18 Session 5)
+### Previous Session (2025-11-18 Session 5)
 
 **Major Enhancements Implemented:**
 - Comprehensive database error logging across all 13 methods
