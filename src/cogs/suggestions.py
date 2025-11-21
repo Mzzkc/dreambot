@@ -209,6 +209,104 @@ class Suggestions(commands.Cog):
             with open('suggestions.json', 'w') as f:
                 json.dump(data, f)
 
+    async def sync_reaction_counts(self, guild):
+        """Sync reaction counts from actual Discord messages to database
+
+        This ensures vote counts remain accurate after bot restarts by treating
+        Discord messages as the single source of truth.
+        """
+        suggestions = self._load_suggestions()
+        suggestions_channel = self.get_suggestions_channel(guild)
+
+        if not suggestions_channel:
+            return {'synced': 0, 'deleted': 0, 'errors': 0, 'manifested': 0}
+
+        synced = 0
+        deleted = 0
+        errors = 0
+        manifested = 0
+
+        # Filter for this guild's active suggestions
+        guild_suggestions = {
+            msg_id: data for msg_id, data in suggestions.items()
+            if data['guild_id'] == guild.id
+            and data.get('status', 'active') == 'active'
+        }
+
+        for message_id, suggestion_data in guild_suggestions.items():
+            try:
+                # Get the channel where this message was posted
+                channel_id = suggestion_data.get('channel_id', suggestions_channel.id)
+                channel = guild.get_channel(channel_id)
+
+                if not channel:
+                    errors += 1
+                    continue
+
+                # Fetch the actual message
+                message = await channel.fetch_message(int(message_id))
+
+                # Count actual reactions (subtract 1 for bot's reaction)
+                actual_votes = 0
+                for reaction in message.reactions:
+                    if str(reaction.emoji) == '🌟':
+                        actual_votes = max(0, reaction.count - 1)
+                        break
+
+                # Compare with DB count
+                db_votes = suggestion_data.get('votes', 0)
+
+                if actual_votes != db_votes:
+                    # Update database
+                    suggestions[message_id]['votes'] = actual_votes
+                    synced += 1
+
+                    # Check if channel suggestion meets threshold
+                    if suggestion_data['type'] == 'channel':
+                        member_count = len([m for m in guild.members if not m.bot])
+                        threshold_votes = int(member_count * self.vote_threshold)
+
+                        if actual_votes >= threshold_votes:
+                            # Auto-manifest the channel
+                            await self._create_suggested_channel(message, suggestions[message_id])
+                            manifested += 1
+
+            except discord.NotFound:
+                # Message was deleted - remove from database
+                del suggestions[message_id]
+                deleted += 1
+            except discord.Forbidden:
+                # Bot doesn't have permission to access message
+                errors += 1
+            except Exception as e:
+                # Log other errors but continue
+                print(f"Error syncing message {message_id}: {e}")
+                errors += 1
+
+        # Save updated suggestions
+        if synced > 0 or deleted > 0:
+            self._save_suggestions_to_db(suggestions)
+
+        return {
+            'synced': synced,
+            'deleted': deleted,
+            'errors': errors,
+            'manifested': manifested
+        }
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Sync reaction counts on bot startup"""
+        await self.bot.wait_until_ready()
+
+        # Sync all guilds
+        for guild in self.bot.guilds:
+            try:
+                stats = await self.sync_reaction_counts(guild)
+                print(f"[Suggestions] Synced guild {guild.name}: {stats['synced']} updated, {stats['deleted']} deleted, {stats['manifested']} manifested")
+            except Exception as e:
+                print(f"[Suggestions] Error syncing guild {guild.name}: {e}")
+
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         """Handle voting on suggestions"""
@@ -297,6 +395,9 @@ class Suggestions(commands.Cog):
     @commands.command(name='topvideos')
     async def top_videos(self, ctx, limit: int = 10):
         """*List the most desired video visions...*"""
+        # Sync reaction counts before generating list
+        await self.sync_reaction_counts(ctx.guild)
+
         suggestions = self._load_suggestions()
         suggestions_channel = self.get_suggestions_channel(ctx.guild)
 
@@ -344,6 +445,9 @@ class Suggestions(commands.Cog):
     @commands.command(name='topother')
     async def top_other(self, ctx, limit: int = 10):
         """*List the most desired other wishes...*"""
+        # Sync reaction counts before generating list
+        await self.sync_reaction_counts(ctx.guild)
+
         suggestions = self._load_suggestions()
         suggestions_channel = self.get_suggestions_channel(ctx.guild)
 
@@ -391,6 +495,9 @@ class Suggestions(commands.Cog):
     @commands.command(name='topchannels')
     async def top_channels(self, ctx, limit: int = 10):
         """*List the most desired channel wishes...*"""
+        # Sync reaction counts before generating list
+        await self.sync_reaction_counts(ctx.guild)
+
         suggestions = self._load_suggestions()
         suggestions_channel = self.get_suggestions_channel(ctx.guild)
 
@@ -442,6 +549,9 @@ class Suggestions(commands.Cog):
 
         For testing purposes. Includes duplicate detection.
         """
+        # Sync reaction counts before generating summary
+        await self.sync_reaction_counts(ctx.guild)
+
         suggestions_channel = self.get_suggestions_channel(ctx.guild)
         if not suggestions_channel:
             embed = discord.Embed(
@@ -881,6 +991,9 @@ class Suggestions(commands.Cog):
         await self.bot.wait_until_ready()
 
         for guild in self.bot.guilds:
+            # Sync reaction counts before generating summary
+            await self.sync_reaction_counts(guild)
+
             suggestions_channel = self.get_suggestions_channel(guild)
             if not suggestions_channel:
                 continue
