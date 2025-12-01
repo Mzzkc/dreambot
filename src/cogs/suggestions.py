@@ -1135,6 +1135,9 @@ class Suggestions(commands.Cog):
             `!warnings @user` - View marks upon a soul
             `!clearwarnings @user` - Erase all marks
             `!purge amount` - Consume messages (max 100)
+            `!preban user_id [reason]` - Mark for erasure upon arrival
+            `!unpreban user_id` - Lift the mark of erasure
+            `!prebans` - View all marked patterns
             """
             embed.add_field(name="⚔️ Enforcement Powers", value=mod_commands, inline=False)
 
