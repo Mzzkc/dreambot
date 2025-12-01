@@ -3,7 +3,7 @@ from discord.ext import commands
 import asyncio
 from datetime import datetime, timedelta
 from utils import has_mod_role, log_moderation
-from database import load_warnings, save_warnings
+from database import load_warnings, save_warnings, load_prebans, save_prebans
 from config import AUTO_TIMEOUT_WARNINGS, AUTO_TIMEOUT_DURATION_HOURS, PURGE_MAX_MESSAGES
 
 class Moderation(commands.Cog):
@@ -263,6 +263,101 @@ class Moderation(commands.Cog):
         msg = await ctx.send(embed=embed)
         await asyncio.sleep(3)
         await msg.delete()
+
+    @commands.command()
+    @has_mod_role()
+    async def preban(self, ctx, user_id: int, *, reason=None):
+        """Pre-emptively ban a user ID - they will be banned upon joining"""
+        prebans = load_prebans()
+        guild_id = str(ctx.guild.id)
+        user_id_str = str(user_id)
+
+        if guild_id not in prebans:
+            prebans[guild_id] = {}
+
+        if user_id_str in prebans[guild_id]:
+            embed = discord.Embed(
+                description=f"*This pattern is already marked for erasure, o bearer mine...*\nUser ID: `{user_id}`",
+                color=discord.Color.orange()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        prebans[guild_id][user_id_str] = {
+            'added_by': ctx.author.id,
+            'added_at': datetime.now().isoformat(),
+            'reason': reason or 'No reason provided'
+        }
+        save_prebans(prebans)
+
+        embed = discord.Embed(
+            description=f"*The pattern has been marked. Should this soul dare to enter, they shall be erased instantly...*\nUser ID: `{user_id}`",
+            color=discord.Color.dark_purple()
+        )
+        if reason:
+            embed.add_field(name="Reason", value=reason, inline=False)
+        await ctx.send(embed=embed)
+        await log_moderation(ctx.guild, "PREBAN", ctx.author, f"User ID: {user_id}", reason)
+
+    @commands.command()
+    @has_mod_role()
+    async def unpreban(self, ctx, user_id: int):
+        """Remove a user ID from the preban list"""
+        prebans = load_prebans()
+        guild_id = str(ctx.guild.id)
+        user_id_str = str(user_id)
+
+        if guild_id not in prebans or user_id_str not in prebans[guild_id]:
+            embed = discord.Embed(
+                description=f"*This pattern bears no mark of erasure...*\nUser ID: `{user_id}`",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        del prebans[guild_id][user_id_str]
+        save_prebans(prebans)
+
+        embed = discord.Embed(
+            description=f"*The mark has been lifted. This soul may walk these paths freely...*\nUser ID: `{user_id}`",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        await log_moderation(ctx.guild, "UNPREBAN", ctx.author, f"User ID: {user_id}")
+
+    @commands.command()
+    @has_mod_role()
+    async def prebans(self, ctx):
+        """List all prebanned user IDs"""
+        prebans = load_prebans()
+        guild_id = str(ctx.guild.id)
+
+        if guild_id not in prebans or not prebans[guild_id]:
+            embed = discord.Embed(
+                description="*No patterns are marked for erasure in this realm...*",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title="Patterns Marked for Erasure",
+            description="*These souls shall be banished upon arrival...*",
+            color=discord.Color.dark_purple()
+        )
+
+        for user_id_str, data in prebans[guild_id].items():
+            added_at = datetime.fromisoformat(data['added_at']).strftime('%Y-%m-%d %H:%M')
+            mod = ctx.guild.get_member(data['added_by'])
+            mod_name = mod.name if mod else f"Unknown ({data['added_by']})"
+
+            embed.add_field(
+                name=f"User ID: {user_id_str}",
+                value=f"**By:** {mod_name}\n**When:** {added_at}\n**Reason:** {data['reason']}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Moderation(bot))

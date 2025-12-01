@@ -468,6 +468,74 @@ class BotDatabase:
             logger.error(f"[Database] increment_vague_usage: Failed for '{statement_id}': {type(e).__name__}: {e}")
             return 1  # Return 1 as fallback to indicate it was used once
 
+    def load_prebans(self):
+        """Load prebanned user IDs from Supabase or JSON"""
+        if not self.supabase:
+            try:
+                with open('prebans.json', 'r') as f:
+                    data = json.load(f)
+                    # Count total prebans across all guilds
+                    count = sum(len(users) for users in data.values())
+                    logger.info(f"[Database] load_prebans: Success ({count} users from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info("[Database] load_prebans: No JSON file found, returning empty dict")
+                return {}
+            except Exception as e:
+                logger.error(f"[Database] load_prebans: JSON read failed: {type(e).__name__}: {e}")
+                return {}
+
+        try:
+            response = self.supabase.table('prebans').select("*").execute()
+            prebans_dict = {}
+            for item in response.data:
+                guild_id = item['guild_id']
+                user_id = item['user_id']
+                if guild_id not in prebans_dict:
+                    prebans_dict[guild_id] = {}
+                prebans_dict[guild_id][user_id] = item['data']
+            count = sum(len(users) for users in prebans_dict.values())
+            logger.info(f"[Database] load_prebans: Success ({count} users from Supabase)")
+            return prebans_dict
+        except Exception as e:
+            logger.error(f"[Database] load_prebans: Supabase query failed: {type(e).__name__}: {e}")
+            return {}
+
+    def save_prebans(self, data):
+        """Save prebanned user IDs to Supabase or JSON"""
+        count = sum(len(users) for users in data.values())
+
+        if not self.supabase:
+            try:
+                with open('prebans.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_prebans: Success ({count} users to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_prebans: JSON write failed: {type(e).__name__}: {e}")
+            return
+
+        try:
+            # Clear existing
+            self.supabase.table('prebans').delete().neq('guild_id', '0').execute()
+
+            # Insert new data
+            for guild_id, guild_prebans in data.items():
+                for user_id, preban_data in guild_prebans.items():
+                    self.supabase.table('prebans').upsert({
+                        'guild_id': guild_id,
+                        'user_id': user_id,
+                        'data': preban_data
+                    }).execute()
+            logger.info(f"[Database] save_prebans: Success ({count} users to Supabase)")
+        except Exception as e:
+            logger.warning(f"[Database] save_prebans: Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open('prebans.json', 'w') as f:
+                    json.dump(data, f)
+                logger.info(f"[Database] save_prebans: JSON fallback successful ({count} users)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_prebans: JSON fallback failed: {type(json_e).__name__}: {json_e}")
+
 # Create global instance
 db = BotDatabase()
 
@@ -516,3 +584,9 @@ def save_vague_usage(data):
 
 def increment_vague_usage(statement_id, statement_text):
     return db.increment_vague_usage(statement_id, statement_text)
+
+def load_prebans():
+    return db.load_prebans()
+
+def save_prebans(data):
+    db.save_prebans(data)

@@ -61,7 +61,18 @@ CREATE TABLE IF NOT EXISTS response_vague_usage (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Prebans table (users to ban on join)
+CREATE TABLE IF NOT EXISTS prebans (
+    id SERIAL PRIMARY KEY,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    data JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(guild_id, user_id)
+);
+
 -- Indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_prebans_guild_user ON prebans(guild_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_warnings_guild_user ON warnings(guild_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_whisper_usage_count ON whisper_usage(usage_count);
 CREATE INDEX IF NOT EXISTS idx_whisper_last_used ON whisper_usage(last_used);
