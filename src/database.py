@@ -468,6 +468,125 @@ class BotDatabase:
             logger.error(f"[Database] increment_vague_usage: Failed for '{statement_id}': {type(e).__name__}: {e}")
             return 1  # Return 1 as fallback to indicate it was used once
 
+    # =========================================================================
+    # GENERIC INTENT POOL FUNCTIONS (Phase 1)
+    # =========================================================================
+
+    def load_pool_usage(self, pool_name):
+        """
+        Generic pool usage loader for any response pool.
+
+        Args:
+            pool_name (str): Pool identifier (e.g., 'greeting', 'kebab')
+
+        Returns:
+            dict: Usage data keyed by response_id
+        """
+        json_file = f'{pool_name}_usage.json'
+        table_name = f'response_{pool_name}_usage'
+
+        if not self.supabase:
+            try:
+                with open(json_file, 'r') as f:
+                    data = json.load(f)
+                    logger.info(f"[Database] load_pool_usage({pool_name}): Success ({len(data)} items from JSON)")
+                    return data
+            except FileNotFoundError:
+                logger.info(f"[Database] load_pool_usage({pool_name}): No JSON file found, returning empty dict")
+                return {}
+            except Exception as e:
+                logger.error(f"[Database] load_pool_usage({pool_name}): JSON read failed: {type(e).__name__}: {e}")
+                return {}
+
+        try:
+            response = self.supabase.table(table_name).select("*").execute()
+            data = {item['response_id']: {
+                'text': item['response_text'],
+                'usage_count': item['usage_count'],
+                'last_used': item['last_used']
+            } for item in response.data}
+            logger.info(f"[Database] load_pool_usage({pool_name}): Success ({len(data)} items from Supabase)")
+            return data
+        except Exception as e:
+            logger.error(f"[Database] load_pool_usage({pool_name}): Supabase query failed: {type(e).__name__}: {e}")
+            return {}
+
+    def save_pool_usage(self, pool_name, data):
+        """
+        Generic pool usage saver for any response pool.
+
+        Args:
+            pool_name (str): Pool identifier
+            data (dict): Usage data to save
+        """
+        json_file = f'{pool_name}_usage.json'
+        table_name = f'response_{pool_name}_usage'
+
+        if not self.supabase:
+            try:
+                with open(json_file, 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_pool_usage({pool_name}): Success ({len(data)} items to JSON)")
+            except Exception as e:
+                logger.error(f"[Database] save_pool_usage({pool_name}): JSON write failed: {type(e).__name__}: {e}")
+            return
+
+        try:
+            # Clear existing
+            self.supabase.table(table_name).delete().neq('response_id', '').execute()
+
+            # Insert new data
+            for response_id, stats in data.items():
+                self.supabase.table(table_name).upsert({
+                    'response_id': response_id,
+                    'response_text': stats['text'],
+                    'usage_count': stats['usage_count'],
+                    'last_used': stats['last_used']
+                }).execute()
+            logger.info(f"[Database] save_pool_usage({pool_name}): Success ({len(data)} items to Supabase)")
+        except Exception as e:
+            logger.warning(f"[Database] save_pool_usage({pool_name}): Supabase error, falling back to JSON: {type(e).__name__}: {e}")
+            try:
+                with open(json_file, 'w') as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"[Database] save_pool_usage({pool_name}): JSON fallback successful ({len(data)} items)")
+            except Exception as json_e:
+                logger.error(f"[Database] save_pool_usage({pool_name}): JSON fallback failed: {type(json_e).__name__}: {json_e}")
+
+    def increment_pool_usage(self, pool_name, response_id, response_text):
+        """
+        Generic usage increment for any response pool.
+
+        Args:
+            pool_name (str): Pool identifier
+            response_id (str): Response ID
+            response_text (str): Response text (updates if changed)
+
+        Returns:
+            int: New usage count
+        """
+        from datetime import datetime, timezone
+
+        try:
+            usage_data = self.load_pool_usage(pool_name)
+
+            if response_id not in usage_data:
+                usage_data[response_id] = {'text': response_text, 'usage_count': 0, 'last_used': None}
+                logger.debug(f"[Database] increment_pool_usage({pool_name}): New response '{response_id}'")
+
+            # Update both usage AND text (in case text was edited)
+            usage_data[response_id]['text'] = response_text
+            usage_data[response_id]['usage_count'] += 1
+            usage_data[response_id]['last_used'] = datetime.now(timezone.utc).isoformat()
+            new_count = usage_data[response_id]['usage_count']
+
+            self.save_pool_usage(pool_name, usage_data)
+            logger.debug(f"[Database] increment_pool_usage({pool_name}): '{response_id}' now at {new_count} uses")
+            return new_count
+        except Exception as e:
+            logger.error(f"[Database] increment_pool_usage({pool_name}): Failed for '{response_id}': {type(e).__name__}: {e}")
+            return 1
+
     def load_prebans(self):
         """Load prebanned user IDs from Supabase or JSON"""
         if not self.supabase:
@@ -590,3 +709,13 @@ def load_prebans():
 
 def save_prebans(data):
     db.save_prebans(data)
+
+# Generic pool functions for intent-based response pools
+def load_pool_usage(pool_name):
+    return db.load_pool_usage(pool_name)
+
+def save_pool_usage(pool_name, data):
+    db.save_pool_usage(pool_name, data)
+
+def increment_pool_usage(pool_name, response_id, response_text):
+    return db.increment_pool_usage(pool_name, response_id, response_text)
