@@ -16,6 +16,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# Fallback keywords for topic extraction when patterns don't match
+# Maps intent -> list of keywords that can be used as topics
+INTENT_TOPIC_KEYWORDS = {
+    'META_LORE': ['emzi', 'vortex', 'containment', 'ahamkara', 'void', 'pattern', 'weave'],
+    'EXISTENTIAL': ['love', 'life', 'meaning', 'purpose', 'happiness', 'truth', 'reality',
+                    'existence', 'consciousness', 'death', 'time', 'fate', 'destiny'],
+}
+
+
 # Patterns for topic extraction, ordered by specificity
 TOPIC_PATTERNS = {
     'OPINION_REQUEST': [
@@ -103,6 +112,15 @@ def extract_topic(message_text, intent=None):
         topic = _try_patterns(text, intent_patterns)
         if topic:
             return _clean_topic(topic)
+
+    # Fallback: check if any intent-specific keywords appear in the message
+    # This handles cases like "I'd say it's on you, not Emzi" where intent
+    # was triggered by a keyword but no pattern extracted a topic
+    if intent and intent in INTENT_TOPIC_KEYWORDS:
+        for keyword in INTENT_TOPIC_KEYWORDS[intent]:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
+                logger.debug(f"Topic extracted via keyword fallback: '{keyword}'")
+                return keyword
 
     return None
 

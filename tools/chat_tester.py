@@ -187,12 +187,15 @@ def select_weighted_pool_response(pool_name: str, response_pool: list, topic: st
     """Generic weighted response selector with dynamic template support."""
     usage_data = load_pool_usage(pool_name)
 
-    candidates = response_pool
-
+    # Filter candidates based on topic availability
     if topic:
+        # With topic: prefer template responses that use {topic}
         template_responses = [r for r in response_pool if '{topic}' in r['text']]
-        if template_responses:
-            candidates = template_responses
+        candidates = template_responses if template_responses else response_pool
+    else:
+        # Without topic: EXCLUDE template responses to avoid literal {topic} in output
+        static_responses = [r for r in response_pool if '{topic}' not in r['text']]
+        candidates = static_responses if static_responses else response_pool
 
     weights = []
     for response in candidates:
