@@ -500,6 +500,9 @@ class BotDatabase:
 
         try:
             response = self.supabase.table(table_name).select("*").execute()
+            # Log raw response for debugging
+            if not response.data:
+                logger.warning(f"[Database] load_pool_usage({pool_name}): Table '{table_name}' returned empty (count={response.count})")
             data = {item['response_id']: {
                 'text': item['response_text'],
                 'usage_count': item['usage_count'],
@@ -533,16 +536,20 @@ class BotDatabase:
 
         try:
             # Clear existing
-            self.supabase.table(table_name).delete().neq('response_id', '').execute()
+            delete_response = self.supabase.table(table_name).delete().neq('response_id', '').execute()
+            logger.debug(f"[Database] save_pool_usage({pool_name}): Deleted {len(delete_response.data) if delete_response.data else 0} rows")
 
             # Insert new data
             for response_id, stats in data.items():
-                self.supabase.table(table_name).upsert({
+                upsert_response = self.supabase.table(table_name).upsert({
                     'response_id': response_id,
                     'response_text': stats['text'],
                     'usage_count': stats['usage_count'],
                     'last_used': stats['last_used']
                 }).execute()
+                # Check if upsert actually worked
+                if not upsert_response.data:
+                    logger.warning(f"[Database] save_pool_usage({pool_name}): Upsert for '{response_id}' returned no data - may have failed silently")
             logger.info(f"[Database] save_pool_usage({pool_name}): Success ({len(data)} items to Supabase)")
         except Exception as e:
             logger.warning(f"[Database] save_pool_usage({pool_name}): Supabase error, falling back to JSON: {type(e).__name__}: {e}")
