@@ -1,11 +1,19 @@
 import discord
 from discord.ext import commands
 import asyncio
+import logging
 from database import load_reaction_roles, save_reaction_roles
 from config import (
     COLOR_ROLES, EXOTIC_COLORS, SPECIAL_ROLES, PRONOUN_ROLES,
     MOD_ROLES, DREAMER_ROLE, SUPPORTER_ROLE
 )
+
+logger = logging.getLogger(__name__)
+
+# Rate limit handling for bulk operations
+REACTION_DELAY = 0.3  # 300ms between adding reactions (Discord limit is ~1/sec per channel)
+ROLE_CREATE_DELAY = 0.5  # 500ms between creating roles
+ROLE_MODIFY_DELAY = 0.25  # 250ms between role add/remove operations
 
 class Roles(commands.Cog):
     """Role management and reaction roles"""
@@ -45,6 +53,7 @@ class Roles(commands.Cog):
                         permissions=discord.Permissions(administrator=True)
                     )
                     missing_roles.append(mod_role_name)
+                    await asyncio.sleep(ROLE_CREATE_DELAY)
                 except discord.Forbidden:
                     error_embed = discord.Embed(
                         description=f"❌ Missing permissions to create role '{mod_role_name}'!",
@@ -62,6 +71,7 @@ class Roles(commands.Cog):
                     color=discord.Color.purple()
                 )
                 missing_roles.append(DREAMER_ROLE)
+                await asyncio.sleep(ROLE_CREATE_DELAY)
             except discord.Forbidden:
                 error_embed = discord.Embed(
                     description=f"❌ Missing permissions to create roles!",
@@ -79,6 +89,7 @@ class Roles(commands.Cog):
                     color = discord.Color.random()
                     role = await ctx.guild.create_role(name=role_name, color=color)
                     created_colors.append(role_name)
+                    await asyncio.sleep(ROLE_CREATE_DELAY)
                 except discord.Forbidden:
                     error_embed = discord.Embed(
                         description=f"❌ Missing permissions to create role '{role_name}'!",
@@ -95,6 +106,7 @@ class Roles(commands.Cog):
                     color = discord.Color.random()
                     role = await ctx.guild.create_role(name=role_name, color=color)
                     created_special.append(role_name)
+                    await asyncio.sleep(ROLE_CREATE_DELAY)
                 except discord.Forbidden:
                     error_embed = discord.Embed(
                         description=f"❌ Missing permissions to create role '{role_name}'!",
@@ -112,6 +124,7 @@ class Roles(commands.Cog):
                     color = discord.Color.random()
                     role = await ctx.guild.create_role(name=role_name, color=color)
                     created_pronouns.append(role_name)
+                    await asyncio.sleep(ROLE_CREATE_DELAY)
                 except discord.Forbidden:
                     error_embed = discord.Embed(
                         description=f"❌ Missing permissions to create role '{role_name}'!",
@@ -129,6 +142,7 @@ class Roles(commands.Cog):
                     color=discord.Color.magenta()
                 )
                 missing_roles.append(SUPPORTER_ROLE)
+                await asyncio.sleep(ROLE_CREATE_DELAY)
             except discord.Forbidden:
                 error_embed = discord.Embed(
                     description="❌ Missing permissions to create roles!",
@@ -266,6 +280,7 @@ class Roles(commands.Cog):
 
         verify_msg = await channel.send(embed=verify_embed)
         await verify_msg.add_reaction('✅')
+        await asyncio.sleep(REACTION_DELAY)
 
         reaction_data[str(verify_msg.id)] = {
             'type': 'verify',
@@ -298,6 +313,7 @@ class Roles(commands.Cog):
 
         for emoji in COLOR_ROLES.keys():
             await color_msg.add_reaction(emoji)
+            await asyncio.sleep(REACTION_DELAY)
 
         reaction_data[str(color_msg.id)] = {
             'type': 'color',
@@ -328,6 +344,7 @@ class Roles(commands.Cog):
 
         for emoji in EXOTIC_COLORS.keys():
             await exotic_msg.add_reaction(emoji)
+            await asyncio.sleep(REACTION_DELAY)
 
         reaction_data[str(exotic_msg.id)] = {
             'type': 'exotic',
@@ -354,6 +371,7 @@ class Roles(commands.Cog):
 
         for emoji in SPECIAL_ROLES.keys():
             await special_msg.add_reaction(emoji)
+            await asyncio.sleep(REACTION_DELAY)
 
         reaction_data[str(special_msg.id)] = {
             'type': 'special',
@@ -387,6 +405,7 @@ class Roles(commands.Cog):
 
         for emoji in PRONOUN_ROLES.keys():
             await pronoun_msg.add_reaction(emoji)
+            await asyncio.sleep(REACTION_DELAY)
 
         reaction_data[str(pronoun_msg.id)] = {
             'type': 'pronouns',

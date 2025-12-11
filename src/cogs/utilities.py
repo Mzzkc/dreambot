@@ -1,13 +1,22 @@
 import discord
 from discord.ext import commands
+import asyncio
 import random
 import json
 import re
 import io
+import logging
 from datetime import datetime
 from utils import has_mod_role, zalgo_text, zalgo_embed
 from tasks.whispers import select_weighted_whisper
 from config import DREAMER_ROLE, MOD_ROLES
+
+logger = logging.getLogger(__name__)
+
+# Rate limit handling for message fetching
+# Discord allows ~50 requests/second but we stay conservative
+HARVEST_BATCH_SIZE = 100  # Fetch 100 messages at a time
+HARVEST_BATCH_DELAY = 0.5  # 500ms between batches
 
 class Utilities(commands.Cog):
     """Utility commands for various bot functions"""
@@ -91,10 +100,42 @@ class Utilities(commands.Cog):
         # Acknowledge the request
         status_msg = await ctx.send(f"🔮 Harvesting conversations from #{channel_name}...")
 
-        # Fetch all messages (oldest first for proper pairing)
+        # Fetch messages in batches to avoid rate limits
         messages = []
-        async for msg in channel.history(limit=limit, oldest_first=True):
-            messages.append(msg)
+        total_fetched = 0
+        last_message = None
+
+        while True:
+            batch = []
+            # Fetch a batch (oldest_first for proper pairing)
+            async for msg in channel.history(
+                limit=HARVEST_BATCH_SIZE,
+                before=last_message,
+                oldest_first=False  # We'll reverse later
+            ):
+                batch.append(msg)
+
+            if not batch:
+                break
+
+            messages.extend(batch)
+            total_fetched += len(batch)
+            last_message = batch[-1]
+
+            # Update status periodically
+            if total_fetched % 500 == 0:
+                await status_msg.edit(content=f"🔮 Fetched {total_fetched} messages...")
+
+            # Rate limit delay between batches
+            await asyncio.sleep(HARVEST_BATCH_DELAY)
+
+            # Check if we've hit the user-specified limit
+            if limit and total_fetched >= limit:
+                messages = messages[:limit]
+                break
+
+        # Reverse to get oldest first (we fetched newest first in batches)
+        messages.reverse()
 
         await status_msg.edit(content=f"🔮 Processing {len(messages)} messages...")
 

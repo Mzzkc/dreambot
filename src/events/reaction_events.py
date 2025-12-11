@@ -1,7 +1,15 @@
 import discord
 from discord.ext import commands
+import asyncio
+import logging
 from database import load_reaction_roles
 from config import COLOR_ROLES, EXOTIC_COLORS, SPECIAL_ROLES, PRONOUN_ROLES, DREAMER_ROLE
+
+logger = logging.getLogger(__name__)
+
+# Rate limit handling for role modifications
+# Discord has per-member rate limits, so we add small delays
+ROLE_MODIFY_DELAY = 0.25  # 250ms between role operations
 
 class ReactionEvents(commands.Cog):
     """Handle reaction role events"""
@@ -55,12 +63,18 @@ class ReactionEvents(commands.Cog):
 
                 if new_role:
                     try:
-                        # Remove all other color roles
+                        # Remove all other color roles (with rate limiting)
                         all_color_names = list(COLOR_ROLES.values()) + list(EXOTIC_COLORS.values())
+                        roles_to_remove = []
                         for color_name in all_color_names:
                             old_role = discord.utils.get(guild.roles, name=color_name)
                             if old_role and old_role in member.roles:
-                                await member.remove_roles(old_role)
+                                roles_to_remove.append(old_role)
+
+                        # Batch remove all color roles at once (more efficient)
+                        if roles_to_remove:
+                            await member.remove_roles(*roles_to_remove)
+                            await asyncio.sleep(ROLE_MODIFY_DELAY)
 
                         # Add new color
                         await member.add_roles(new_role)

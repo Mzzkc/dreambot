@@ -1,208 +1,103 @@
 # Active Context
 
-## Session 8 Complete - Reaction Sync Implementation & Unit Tests
+## Session 13 - Rate Limit Handling & Deployment Fix
 
-### Latest Session (2025-11-21 Session 8)
+**Last Updated:** 2025-12-11
 
-**Reaction Count Synchronization System Implemented:**
-- Fixed critical bug: Vote counts now persist accurately across bot restarts
-- Implemented `sync_reaction_counts()` method treating Discord messages as source of truth
-- Hybrid architecture: Event-driven real-time updates + periodic reconciliation
-- Auto-manifestation works during sync (channels created if threshold met while offline)
-- **Production Status**: ✅ Ready to deploy - fully tested, no breaking changes
-- **Test Coverage**: 10/10 unit tests passing (< 1 second execution)
+### The Problem
 
-**Implementation Details:**
-- Sync triggers: Startup, before weekly summary, before top commands
-- Edge case handling: Deleted messages, missing channels, permission errors
-- Statistics returned: synced, deleted, errors, manifested counts
-- Files modified: `src/cogs/suggestions.py` (+100 lines)
+Render deployments were failing with HTTP 429 (Too Many Requests) from Discord's Cloudflare protection:
 
-**Unit Test Suite Created:**
-- 10 comprehensive tests, all passing
-- Test infrastructure: pytest, fixtures, mocking strategy
-- Fast execution (< 1 second), no external dependencies
-- Coverage: stale counts, deletions, errors, threshold logic, guild filtering
-- See: `tests/test_suggestions_sync.py`, `tests/README.md`
+```
+discord.errors.HTTPException: 429 Too Many Requests (error code: 0): <!DOCTYPE html>
+```
 
-**Current State:**
-- Bot has comprehensive wish management system
-- Reaction tracking now reliable across restarts
-- All features tested and production-ready
-- No pending issues or blockers
+**Root Cause Analysis:**
+1. Render spins up new instances during zero-downtime deployments
+2. Multiple instances (old + new) try to connect to Discord gateway simultaneously
+3. Discord's Cloudflare layer sees rapid requests from same IP/token
+4. Cloudflare issues IP-level 429 (not per-endpoint rate limit)
+5. Bot crashes and retries immediately, compounding the problem
 
-**Deployment Ready:**
-- Run `./run_tests.sh` to verify
-- Commit and deploy when ready
-- Monitor startup logs for sync stats: `[Suggestions] Synced guild X: Y updated...`
+**Evidence from logs:**
+- Multiple instance IDs hitting 429 simultaneously (`srv-...-xnhlv`, `srv-...-qf75q`, etc.)
+- HTML response is Cloudflare error page, not Discord API JSON
+- `error code: 0` indicates pre-API blocking
 
-## Session 7 Complete - Security Audit & Channel Validation Planning
+### The Solution
 
-### Previous Session (2025-11-21 Session 7)
+**1. Exponential Backoff at Startup (`src/main.py`)**
 
-**Comprehensive Security Audit Completed:**
-- Audited all 23 Python source files for security vulnerabilities
-- TDF-aligned multi-domain analysis: COMP(0.8), SCI(0.8), CULT(0.7), EXP(0.6)
-- Attack vectors tested: SQL injection, command injection, path traversal, code execution, deserialization, second-order injection
-- **Security Verdict**: ✅ A- (Excellent) - SAFE FOR PRODUCTION
-- **Critical/High vulnerabilities**: ZERO
-- **Medium vulnerabilities**: 1 (channel name validation)
-- **Low vulnerabilities**: 2 (platform-mitigated)
+```python
+# Configuration
+MAX_RETRIES = 10
+BASE_DELAY = 30  # Start with 30 second delay
+MAX_DELAY = 900  # Cap at 15 minutes
+JITTER_RANGE = 0.5  # ±50% jitter
 
-**Key Security Findings:**
-✅ No eval/exec/compile/subprocess usage (verified via grep)
-✅ Supabase SDK uses parameterized queries (SQL injection impossible)
-✅ All file paths hardcoded (path traversal impossible)
-✅ Safe JSON deserialization only
-✅ Input validation on critical paths
-⚠️ Channel name impersonation possible (needs validation fix)
+# Pattern
+delay = min(BASE_DELAY * (2 ** retry_count), MAX_DELAY)
+jitter = delay * random.uniform(-JITTER_RANGE, JITTER_RANGE)
+await asyncio.sleep(delay + jitter)
+```
 
-**Implementation Plan Created:**
-- Issue: Channel names flow unsanitized to Discord API (suggestions.py:267-276)
-- Risk: Users could create confusing channels like "mod-announcements"
-- Solution: Add character whitelist + reserved prefix blocking
-- Files to modify: constants.py, checks.py, suggestions.py
-- Effort: 30-45 minutes
-- Priority: MEDIUM (non-blocking but recommended)
+**Delay progression:**
+- Attempt 1: ~30s (15-45s with jitter)
+- Attempt 2: ~60s (30-90s)
+- Attempt 3: ~120s (60-180s)
+- Attempt 4: ~240s (120-360s)
+- Attempt 5: ~480s (240-720s)
+- Attempt 6+: ~900s (450-1350s, capped at 15 min)
 
-**Technical Details:**
-- Complete data flow analysis: user input → database → retrieval → display
-- Traced all `data['description']` usage in suggestions.py
-- Validated database interactions against injection patterns
-- See: `memory-bank/session-2025-11-21-security-audit.md` for full report
+**2. Rate Limit Delays in Bulk Operations**
 
-**Current State:**
-- Bot is secure and production-ready
-- No code changes made this session (audit only)
-- Implementation plan ready for next session
+- `src/cogs/roles.py`: 300ms delay between adding reactions in `setup_roles`
+- `src/cogs/suggestions.py`: 100ms delay between message fetches in `sync_reaction_counts`
 
-## Session 6 Complete - Bug Fixes & Documentation Updates
+### Files Modified
 
-### Previous Session (2025-11-19 Session 6)
+```
+src/main.py              # Complete rewrite with backoff
+src/cogs/roles.py        # Added REACTION_DELAY (300ms)
+src/cogs/suggestions.py  # Added MESSAGE_FETCH_DELAY (100ms)
+```
 
-**Bug Fixes Implemented:**
-- Fixed double response bug and status display
-- Updated help command documentation
+### Key Insights
 
-## Session 5 Complete - Database Error Handling & Logging
+**Why discord.py's built-in rate limiting didn't help:**
+- discord.py handles per-endpoint rate limits (429 with JSON body)
+- Cloudflare-level blocks return HTML, not JSON
+- These are IP-level blocks, not API route limits
+- The library doesn't catch and retry these gracefully
 
-### Previous Session (2025-11-18 Session 5)
+**Why jitter matters:**
+- Multiple Render instances might retry at exactly the same intervals
+- Without jitter, retries stay synchronized and keep hitting limits
+- ±50% randomization desynchronizes retry attempts
 
-**Major Enhancements Implemented:**
-- Comprehensive database error logging across all 13 methods
-- Structured logging with Python's logging module
-- Graceful error handling with detailed diagnostics
-- Four log levels: INFO, WARNING, ERROR, DEBUG
-- Operation context in all log messages (name, counts, exceptions)
-- Fallback visibility tracking (Supabase → JSON)
-- Production-ready debugging capabilities
-- Zero breaking changes - preserves all existing behavior
+### Test Results
 
-**Technical Details:**
-- Modified: `src/database.py` - Added logging to all methods
-- Logger format: `[Database] {operation}: {status} ({details})`
-- Error handling: Try/except with exception type and message
-- Tested with simulated failures (syntax check + functional test)
-- Documentation updated: STATUS.md, techContext.md, activeContext.md
+All 95 tests pass:
+```
+tests/test_escape_detection.py: 20 passed
+tests/test_intent_detection.py: 65 passed
+tests/test_suggestions_sync.py: 10 passed
+```
 
-## Session 4 Complete - Interactive Magic 8-Ball & ID-Based Response System
+### Next Steps
 
-### Previous Session (2025-11-18 Session 4)
+1. Commit and push changes
+2. Trigger Render deployment
+3. Monitor logs for backoff behavior
+4. Verify bot connects successfully after rate limit clears
 
-**Major Features Implemented:**
-- Interactive tag responses: Bot responds to @mentions
-- Magic 8-ball system: 35 Ahamkara-themed responses for questions
-- Vague responses: 29 cryptic statements for non-questions
-- Question detection via regex patterns
-- Weighted selection algorithm: 1/(usage+1)² favors variety
-- ID-based architecture: Edit response text without losing stats
-- Universal zalgo transformation on all bot outputs
-- Admin !speak command: Post to #general-chat from anywhere
-- Full Supabase integration for response tracking
+---
 
-## Session 2 Complete - Wish Lifecycle Management
+## Previous Sessions Summary
 
-### Previous Session (2025-11-03 Session 2)
-
-**New Features Implemented:**
-- Comprehensive wish lifecycle management (active → granted)
-- Admin tools for marking wishes as fulfilled
-- Public viewing of granted wish history
-- Enhanced filtering and duplicate detection
-
-## Session 1 Complete - Core Feature Set
-
-### Completed Features
-
-**1. Admin Suggestion Management**
-- `!removewish <message_id>` - Moderator command to delete suggestions
-- Accepts message IDs or Discord links
-- Automatically removes message if possible
-- Maintains Ahamkara theming in responses
-
-**2. Enhanced Weekly Summary**
-- Clickable message links to original posts
-- Format: `[View Wish](https://discord.com/channels/...)`
-- Extended description preview (80 chars vs 50)
-- Graceful fallback for suggestions without channel_id
-
-**3. Pronoun Roles System**
-- 13 pronoun roles added to constants.py
-- Standard pronouns: he/him, she/her, they/them, he/they, she/they, it/its, any pronouns, ask my pronouns
-- Neo pronouns: xe/xem, ze/zir, fae/faer, e/em, ve/ver
-- New section in role-selection channel
-- Reaction events handle add/remove
-- Users can select multiple pronoun roles
-
-**4. Data Migration**
-- `!migratewishes` - One-time migration command
-- Backfills channel_id for existing suggestions
-- Reports migration results (migrated/already complete/defaulted)
-- Safe for production use
-
-### Key Decisions Made
-- ✅ No Supabase schema changes needed (JSONB is flexible)
-- ✅ Migration via Discord command (user-friendly)
-- ✅ 13 pronoun options (comprehensive but not overwhelming)
-- ✅ Graceful handling of legacy data
-
-## Files Modified
-- `src/cogs/suggestions.py` - Added commands, updated weekly_summary
-- `src/cogs/roles.py` - Added pronoun role creation and setup
-- `src/events/reaction_events.py` - Added pronoun reaction handling
-- `src/config/constants.py` - Added PRONOUN_ROLES
-- `SUPABASE_SETUP.md` - Added migration instructions
-
-### Session 2 Features (Latest)
-
-**1. Wish Lifecycle System**
-- Status field: 'active' | 'granted'
-- Granted metadata: granted_at, granted_by, granted_notes
-- All commands filter appropriately by status
-
-**2. Admin Commands**
-- `!manifestwish <id> [notes]` - Mark wishes as granted
-- `!weeklysummary` - Manual summary trigger for testing
-- Updated `!migratewishes` - Now backfills status too
-
-**3. Public Commands**
-- `!manifestations [type] [limit]` - View granted wish history
-- Enhanced `!topvideos` and `!topother` - Message links + active filter
-
-**4. Duplicate Detection**
-- Weekly summary checks last 5 messages
-- Skips posting if recent summary found
-- Prevents spam in active channels
-
-## Ready for Deployment
-All features tested and committed. Ready for production deployment.
-
-**Commits:**
-- `0e4b56d` - Interactive magic 8-ball + weighted responses + universal zalgo
-- `dba2067` - ID-based response system for 8-ball/vague
-- `80bb14d` - ID-based system for whispers (consistency)
-- `6745ce1` - Session 2 (wish lifecycle)
-- `92f64d4` - Session 3 (channel wishes)
-
-**Database Migration Required:**
-- Run `schema.sql` in Supabase to create new tables (response_8ball_usage, response_vague_usage)
+- **Session 12**: Code organization (!help moved), schema updates, chat tester tool
+- **Session 11**: Escape paths (auto-disengage from spammy users), intent fixes
+- **Session 10**: Conversational enhancement (21 intents, topic extraction, context)
+- **Session 9**: Conversation harvester (`!harvest`) for training data
+- **Session 8**: Reaction sync implementation, unit test suite
+- **Session 7**: Security audit (A- rating, safe for production)

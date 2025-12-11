@@ -1,12 +1,18 @@
 import discord
 from discord.ext import commands, tasks
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 import json
 from database import db
 from config import DREAMER_ROLE, MOD_ROLES
 from utils import has_mod_role
+
+logger = logging.getLogger(__name__)
+
+# Rate limit handling
+MESSAGE_FETCH_DELAY = 0.1  # 100ms between message fetches to avoid rate limits
 
 class Suggestions(commands.Cog):
     """Ahamkara suggestion system for wishes and desires"""
@@ -234,6 +240,9 @@ class Suggestions(commands.Cog):
 
         for message_id, suggestion_data in guild_suggestions.items():
             try:
+                # Small delay between fetches to respect rate limits
+                await asyncio.sleep(MESSAGE_FETCH_DELAY)
+
                 # Get the channel where this message was posted
                 channel_id = suggestion_data.get('channel_id', suggestions_channel.id)
                 channel = guild.get_channel(channel_id)
